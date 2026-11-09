@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Monitor del Aula</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: vidrio esmerilado estilo iOS sobre fondo neutro; una columna con la conexión arriba, lectura en vivo, historial y monitor serie. Paleta reducida: neutros + un acento azul; rojo solo para avisos. */
+:root{
+  color-scheme:light;
+  --bg:#eef1f6;--surface:rgba(255,255,255,.62);--surface-2:rgba(118,118,128,.12);--edge:rgba(255,255,255,.8);--border:rgba(60,60,67,.12);
+  --text:#1c1c1e;--muted:#6c6c74;--faint:#a0a0a8;
+  --accent:#007aff;--accent-bg:rgba(0,122,255,.11);--bad:#e0352b;--bad-bg:rgba(255,59,48,.12);--ok:#1f9d55;--ok-bg:rgba(52,199,89,.14);
+  --wall:rgba(0,122,255,.14);--wall-2:rgba(120,130,150,.12);
+  --sombra:0 10px 30px rgba(31,45,90,.08),0 1px 2px rgba(31,45,90,.05);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
+  --font-num:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,Menlo,monospace;
+  --blur:blur(28px) saturate(180%);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.55);--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.08);
+  --text:#f5f5f7;--muted:#a3a3ad;--faint:#6f6f79;--accent:#0a84ff;--accent-bg:rgba(10,132,255,.2);--bad:#ff453a;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
+  --wall:rgba(10,132,255,.16);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.55);--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.08);
+  --text:#f5f5f7;--muted:#a3a3ad;--faint:#6f6f79;--accent:#0a84ff;--accent-bg:rgba(10,132,255,.2);--bad:#ff453a;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
+  --wall:rgba(10,132,255,.16);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.5 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
+.fondo{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(45% 50% at 8% 4%,var(--wall),transparent 70%),radial-gradient(45% 50% at 95% 90%,var(--wall-2),transparent 70%),var(--bg)}
+.wrap{max-width:1040px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:40px;height:40px;border-radius:12px;background:var(--accent);display:grid;place-items:center;color:#fff;flex:none}
+header .t b{display:block;font-size:18px}
+header .t small{color:var(--muted);font-size:13px}
+.der{margin-left:auto;display:flex;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:99px;font-size:13.5px;font-weight:600;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.chip.ac{background:var(--accent-bg);color:var(--accent)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.btn{border:1px solid var(--edge);background:var(--surface);color:var(--accent);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.boton{border:0;border-radius:12px;padding:11px 18px;font:600 15px var(--font);cursor:pointer;background:var(--accent);color:#fff}
+.boton.sec{background:var(--surface-2);color:var(--text)}
+.boton:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--surface);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--edge);border-radius:22px;padding:20px 22px;box-shadow:var(--sombra);min-width:0}
+.ic{width:20px;height:20px;flex:none}
+.ico{width:40px;height:40px;border-radius:11px;background:var(--surface-2);display:grid;place-items:center;color:var(--text);flex:none}
+.ico.on{background:var(--accent);color:#fff}
+.conexion{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;justify-content:space-between}
+.conexion b{display:block;font-size:17px}
+.conexion p{margin:2px 0 0;color:var(--muted);font-size:14.5px;max-width:46em}
+.conexion .acc{display:flex;gap:10px;flex-wrap:wrap}
+.error{color:var(--bad);font-size:14.5px;margin:10px 0 0}
+.vivo{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
+.temp .v{font-family:var(--font-num);font-size:112px;font-weight:300;line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;margin-top:10px}
+.temp .v small,.mini .v small{font-size:.38em;color:var(--muted);font-weight:500;letter-spacing:0}
+.cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cab h2{font-size:16px;display:flex;align-items:center;gap:9px;margin:0}
+.cab h2 .ic{width:18px;height:18px;color:var(--muted)}
+.escala{position:relative;height:8px;border-radius:99px;margin:34px 0 8px;background:linear-gradient(90deg,var(--surface-2),var(--accent))}
+.escala .m{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text);opacity:.4}
+.escala .m span{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.aguja{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .6s}
+.esc-txt{display:flex;justify-content:space-between;font-size:12.5px;color:var(--faint)}
+.nota{color:var(--muted);margin:12px 0 0;font-size:15px}
+.lado{display:grid;gap:16px}
+.mini{display:flex;align-items:center;gap:16px}
+.mini .k{color:var(--muted);font-size:14px;font-weight:600}
+.mini .v{font-family:var(--font-num);font-size:44px;font-weight:500;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.mini .n{color:var(--muted);font-size:13.5px}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:500;padding:6px 14px;border-radius:8px;cursor:pointer}
+.seg button.activo{background:var(--surface);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12)}
+.leyenda{display:flex;gap:18px;font-size:13.5px;color:var(--muted);margin:12px 0;flex-wrap:wrap}
+.leyenda i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:3px}
+.chart{position:relative;overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto}
+.vacio{color:var(--muted);text-align:center;padding:32px 10px;margin:0}
+.g-grid{stroke:var(--border)} .g-eje{fill:var(--faint);font-size:11px;font-family:var(--font)}
+.g-t{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round}
+.g-h{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:4 4}
+.g-area{fill:var(--accent);fill-opacity:.08}
+.g-pres{fill:var(--accent);fill-opacity:.18}
+.g-u{stroke:var(--text);stroke-opacity:.35;stroke-dasharray:3 4}
+.g-ut{fill:var(--muted);font-size:11px;font-weight:600;font-family:var(--font)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ev{list-style:none;margin:0;padding:0}
+.ev li{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
+.ev li:first-child{border-top:0}
+.ev .h{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:14px}
+.ev .ico{width:32px;height:32px;border-radius:9px}
+.ev .ico .ic{width:16px;height:16px}
+.fila{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);font-size:15px}
+.fila:first-child{border-top:0}
+.fila span{color:var(--muted)}
+.fila b{text-align:right;font-variant-numeric:tabular-nums}
+.consola{font:12.5px/1.55 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;height:240px;overflow:auto;white-space:pre-wrap;margin:10px 0 0;color:var(--text)}
+footer{color:var(--muted);font-size:13.5px;text-align:center}
+.login{min-height:100vh;display:grid;place-items:center;padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.login .card{width:100%;max-width:400px;padding:30px 28px}
+.login h1{font-size:24px;margin:18px 0 4px}
+.login p{margin:0;color:var(--muted);font-size:15px}
+.login form{display:flex;flex-direction:column;gap:14px;margin-top:22px}
+.campo{display:flex;flex-direction:column;gap:6px}
+.campo label{font-size:14px;font-weight:600}
+.campo input{height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:16px var(--font)}
+.campo input:focus{outline:3px solid var(--accent-bg);border-color:var(--accent)}
+.login .boton{width:100%;height:46px;margin-top:4px}
+.btn-salir{border:1px solid var(--edge);background:var(--surface);color:var(--text);height:40px;padding:0 14px;border-radius:99px;font:600 14px var(--font);cursor:pointer;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.selector{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.selector label,.campo-chico label{font-size:13.5px;font-weight:600;color:var(--muted)}
+select,.campo-chico input{height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:15px var(--font)}
+.guardado{font-size:14px;color:var(--muted);margin:0}
+.guardado.mal{color:var(--bad)}
+.consulta-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:14px 0 4px}
+.campo-chico{display:flex;flex-direction:column;gap:6px}
+.desc{color:var(--muted);font-size:14.5px;margin:8px 0 0}
+.tabla-wrap{overflow-x:auto;margin-top:10px}
+.tabla{width:100%;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
+.tabla th{text-align:left;font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tabla td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.resumen{font-size:13.5px;color:var(--muted);margin:8px 0 0}
+details.sql{margin-top:12px}
+details.sql summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14px}
+details.sql pre{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;overflow:auto;margin:8px 0 0;white-space:pre;color:var(--text)}
+.aviso-bd{padding:12px 14px;border-radius:12px;background:var(--surface-2);color:var(--muted);font-size:14.5px;margin:12px 0 0}
+:focus-visible{outline:3px solid var(--accent-bg);outline-offset:2px}
+@media (max-width:820px){.vivo,.g2{grid-template-columns:1fr}.lado{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:88px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.sub{font-size:15px;font-weight:600;margin:4px 0 8px}
+.sub span{color:var(--muted);font-weight:500}
+.vivo-bd .vacio{padding:18px 10px}
+</style>
+</head>
+<body>
+<div class="fondo" aria-hidden="true"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-thermo" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/></g></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 15l4-4 3 3 5-6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></g></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-usb" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v15"/><path d="m9 5 3-3 3 3"/><path d="M12 13 7 10V7"/><path d="m12 15 5-3V9"/><circle cx="12" cy="19.5" r="2.5"/><rect x="5.5" y="5" width="3" height="2"/><circle cx="17" cy="8" r="1.2"/></g></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m5 8 4 4-4 4M12 16h7"/></symbol>
+</svg>
+
+<main class="login" id="pantallaLogin">
+  <div class="card">
+    <span class="logo"><svg class="ic"><use href="#i-thermo"/></svg></span>
+    <h1>Monitor del Aula</h1>
+    <p id="lTxt">Ingresá con tu nombre y contraseña.</p>
+    <form id="formLogin" novalidate>
+      <div class="campo"><label for="lUsuario" id="lUsuarioLbl">Usuario</label><input id="lUsuario" autocomplete="username" required></div>
+      <div class="campo"><label for="lClave">Contraseña</label><input id="lClave" type="password" autocomplete="current-password" required></div>
+      <p class="error" id="lError" role="alert" hidden></p>
+      <button class="boton" type="submit">Ingresar</button>
+    </form>
+  </div>
+</main>
+
+<div class="wrap" id="app" hidden>
+  <header>
+    <span class="logo"><svg class="ic"><use href="#i-thermo"/></svg></span>
+    <div class="t"><b>Monitor del Aula</b><small>UTN · Facultad Regional San Francisco</small></div>
+    <div class="der">
+      <span class="chip" id="estadoChip"><span class="dot"></span><span id="estadoTxt">Sin conectar</span></span>
+      <button class="btn" id="bTema" aria-label="Cambiar entre modo claro y oscuro"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <button class="btn-salir" id="bSalir">Salir</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="conexion">
+      <div style="display:flex;gap:14px;align-items:center">
+        <span class="ico" id="icoUsb"><svg class="ic"><use href="#i-usb"/></svg></span>
+        <div><b id="conTit">Conectá el ESP32 por USB</b><p id="conTxt">Lee los mismos datos que muestra el Serial Monitor de Arduino IDE. Antes, cerrá el Serial Monitor: el puerto no se puede usar desde dos lugares a la vez.</p></div>
+      </div>
+      <div class="acc">
+        <button class="boton" id="bConectar">Conectar al ESP32</button>
+        <button class="boton sec" id="bDesconectar" hidden>Desconectar</button>
+        <button class="boton sec" id="bDemo">Ver datos de ejemplo</button>
+      </div>
+    </div>
+    <p class="error" id="conError" role="alert" hidden></p>
+    <div class="selector" id="bdBox" hidden>
+      <label for="selAula">Aula</label>
+      <select id="selAula"></select>
+      <p class="guardado" id="guardadoTxt">Los datos se guardan en la base de Access mientras el ESP32 está conectado.</p>
+    </div>
+  </section>
+
+  <section class="vivo" aria-live="polite">
+    <div class="card temp">
+      <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Temperatura</h2><span class="chip" id="zona">--</span></div>
+      <div class="v" id="vTemp">--</div>
+      <div class="escala">
+        <div class="m" style="left:44.4%"><span>24 °C</span></div>
+        <div class="m" style="left:61.1%"><span>27 °C</span></div>
+        <div class="aguja" id="aguja" hidden></div>
+      </div>
+      <div class="esc-txt"><span>16 °C</span><span>34 °C</span></div>
+      <p class="nota" id="zonaTxt">Conectá el ESP32 para ver la temperatura del aula.</p>
+    </div>
+    <div class="lado">
+      <div class="card mini"><span class="ico"><svg class="ic"><use href="#i-drop"/></svg></span><div><div class="k">Humedad</div><div class="v" id="vHum">--</div><div class="n" id="nHum">--</div></div></div>
+      <div class="card mini"><span class="ico" id="icoPres"><svg class="ic"><use href="#i-users"/></svg></span><div><div class="k">Presencia</div><div class="v" id="vPres" style="font-size:32px">--</div><div class="n" id="nPres">--</div></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="cab"><h2><svg class="ic"><use href="#i-chart"/></svg>Últimas lecturas</h2>
+      <div class="seg" id="rango"><button data-m="10" class="activo">10 min</button><button data-m="60">1 hora</button><button data-m="360">6 horas</button></div>
+    </div>
+    <div class="leyenda"><span><i style="background:var(--accent)"></i>Temperatura</span><span><i style="background:var(--muted)"></i>Humedad</span><span><i style="background:var(--accent);opacity:.25;height:10px"></i>Hay gente</span></div>
+    <div class="chart" id="chart"><p class="vacio">El gráfico aparece con las primeras lecturas.</p></div>
+  </section>
+
+  <section class="g2">
+    <div class="card">
+      <div class="cab" style="margin-bottom:8px"><h2><svg class="ic"><use href="#i-cpu"/></svg>Equipos</h2><span class="chip" id="modoChip">--</span></div>
+      <div id="equipos">
+        <div class="fila"><span>Aire acondicionado</span><b id="eAire">--</b></div>
+        <div class="fila"><span>Ventilador</span><b id="eVent">--</b></div>
+        <div class="fila"><span>Luces</span><b id="eLuces">--</b></div>
+        <div class="fila"><span>Cortina</span><b id="eCortina">--</b></div>
+        <div class="fila"><span>Nivel de luz</span><b id="eLuz">--</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="cab" style="margin-bottom:8px"><h2><svg class="ic"><use href="#i-list"/></svg>Movimiento detectado</h2><span style="font-size:13.5px;color:var(--muted)" id="evRes">--</span></div>
+      <ul class="ev" id="eventos"><li>Todavía no hay cambios.</li></ul>
+    </div>
+  </section>
+
+  <section class="card" id="seccionVivo" hidden>
+    <div class="cab"><h2><svg class="ic"><use href="#i-list"/></svg>La base de datos en vivo</h2><span style="font-size:13.5px;color:var(--muted)" id="vivoRes">--</span></div>
+    <div class="g2 vivo-bd">
+      <div><h3 class="sub">Lecturas <span id="vivoNL"></span></h3><div class="tabla-wrap" id="vivoLecturas"></div></div>
+      <div><h3 class="sub">Eventos <span id="vivoNE"></span></h3><div class="tabla-wrap" id="vivoEventos"></div></div>
+    </div>
+  </section>
+
+  <section class="card" id="seccionConsultas">
+    <div class="cab"><h2><svg class="ic"><use href="#i-list"/></svg>Consultas a la base de datos</h2><span class="chip" id="bdChip"><span class="dot"></span><span id="bdTxt">Sin conectar</span></span></div>
+    <div class="consulta-form">
+      <div class="campo-chico"><label for="cConsulta">Consulta</label><select id="cConsulta"></select></div>
+      <button class="boton" id="bConsultar">Ejecutar consulta</button>
+    </div>
+    <p class="desc" id="cDesc"></p>
+    <p class="aviso-bd" id="cSinBase" hidden>La página no está conectada a la base de Access. En la computadora que tiene la base, abrí <b>Conectar base de datos.bat</b> (está en la carpeta <b>ClimControl</b>, al lado de la base de datos) y volvé a cargar esta página. Si el navegador pregunta si la página puede acceder a la red local, tocá <b>Permitir</b>.</p>
+    <p class="error" id="cError" role="alert" hidden></p>
+    <div class="tabla-wrap" id="cResultado"></div>
+    <p class="resumen" id="cResumen"></p>
+    <details class="sql"><summary>Ver el SQL de esta consulta</summary><pre id="cSql"></pre></details>
+  </section>
+
+  <section class="card" id="seccionAulas" hidden>
+    <div class="cab"><h2><svg class="ic"><use href="#i-cpu"/></svg>Aulas</h2><span style="font-size:13.5px;color:var(--muted)">Solo superadmin</span></div>
+    <div class="tabla-wrap" id="aulasLista"></div>
+    <form class="consulta-form" id="formAula" novalidate>
+      <div class="campo-chico"><label for="aNombre">Nombre</label><input id="aNombre" maxlength="60"></div>
+      <div class="campo-chico"><label for="aEncargado">Encargado</label><select id="aEncargado"></select></div>
+      <button class="boton" type="submit">Agregar aula</button>
+    </form>
+    <p class="error" id="aError" role="alert" hidden></p>
+  </section>
+
+  <section class="card">
+    <div class="cab"><h2><svg class="ic"><use href="#i-term"/></svg>Monitor serie</h2><span style="font-size:13.5px;color:var(--muted)">115200 baudios · lo mismo que muestra Arduino IDE</span></div>
+    <pre class="consola" id="consola">Esperando datos…</pre>
+  </section>
+
+  <footer>Monitor del Aula · ESP32 + DHT11 (pin 19) + PIR (pin 18) · Investigación Tecnológica y Comunicaciones de Datos · UTN FRSF</footer>
+</div>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const INTERVALO=2;                 // segundos entre lecturas, como el ESP32
+  const MAX=6*3600/INTERVALO;        // guardamos hasta 6 horas
+  let datos=[], eventos=[], minutos=10, modo='nada';
+  let estado={}, actual={};
+  const hora=ts=>new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const fmt=n=>n.toFixed(1).replace('.',',');
+  const lindo=v=>v==null?'--':v.charAt(0)+v.slice(1).toLowerCase();
+
+  // ---------- Lo que imprime el ESP32: "Clave: valor", un bloque cada 2 segundos ----------
+  function procesar(linea){
+    consola(linea);
+    if(/^\s*-{5,}/.test(linea)){ cerrarLectura(); return; }
+    const m=linea.match(/^\s*([^:]+):\s*(.*)$/);
+    if(!m) return;
+    const k=m[1].trim().toLowerCase(), v=m[2].trim();
+    const num=x=>{const n=parseFloat(x.replace(',','.'));return isNaN(n)?null:n;};
+    if(k==='temperatura') actual.temp=num(v);
+    else if(k==='humedad') actual.hum=num(v);
+    else if(k==='personas') actual.pres=/^s/i.test(v);
+    else if(k==='nivel de luz') actual.luz=num(v);
+    else if(k==='cortina') actual.cortina=v;
+    else if(k==='luces') actual.luces=v;
+    else if(k==='ventilador') actual.vent=v;
+    else if(k==='aire acondicionado') actual.aire=v;
+    else if(k==='modo'){ actual.modo=v; cerrarLectura(); }
+  }
+  function cerrarLectura(){
+    if(!('temp' in actual) && !('pres' in actual)){ actual={}; return; }
+    Object.assign(estado,actual); actual={};
+    agregar({t:Date.now(),temp:estado.temp,hum:estado.hum,pres:!!estado.pres});
+    guardarEnBase();
+  }
+  function agregar(p){
+    const prev=datos[datos.length-1];
+    if(prev && p.pres!==prev.pres) eventos.push({t:p.t,pres:p.pres});
+    datos.push(p); if(datos.length>MAX) datos.shift();
+    pintarTodo();
+  }
+
+  const lineas=[];
+  function consola(txt){
+    lineas.push(txt); if(lineas.length>60) lineas.shift();
+    const c=$('consola'), alFinal=c.scrollTop+c.clientHeight>=c.scrollHeight-20;
+    c.textContent=lineas.join('\n');
+    if(alFinal) c.scrollTop=c.scrollHeight;
+  }
+
+  // ---------- Conexión por USB (Web Serial: Chrome o Edge en la computadora) ----------
+  let puerto=null, lector=null, cierre=null;
+  function mostrarEstado(txt,clase,tit,sub){
+    $('estadoTxt').textContent=txt; $('estadoChip').className='chip'+(clase?' '+clase:'');
+    if(tit) $('conTit').textContent=tit;
+    if(sub) $('conTxt').textContent=sub;
+    $('icoUsb').className='ico'+(modo==='usb'?' on':'');
+    $('bConectar').hidden=modo==='usb'; $('bDesconectar').hidden=modo!=='usb';
+    $('bDemo').hidden=modo==='usb';
+    textoGuardado();
+  }
+  function error(txt){ const e=$('conError'); e.textContent=txt; e.hidden=!txt; }
+
+  async function conectar(){
+    error('');
+    if(!('serial' in navigator)){
+      error('Este navegador no puede leer el USB. Abrí este archivo en Google Chrome o Microsoft Edge en la computadora. Las páginas publicadas en claude.ai tampoco tienen acceso al USB.');
+      return;
+    }
+    try{ puerto=await navigator.serial.requestPort(); }
+    catch(e){
+      if(e.name==='NotFoundError') return;   // cerró la ventana sin elegir
+      error('El navegador no dejó usar el USB desde esta página. Abrí el archivo monitor-usb.html en Chrome o Edge.');
+      return;
+    }
+    try{ await puerto.open({baudRate:115200}); }
+    catch(e){ error('No se pudo abrir el puerto. Cerrá el Serial Monitor de Arduino IDE (o cualquier programa que lo esté usando) y probá de nuevo.'); puerto=null; return; }
+    try{ await puerto.setSignals({dataTerminalReady:false,requestToSend:false}); }catch(e){}
+    if(modo==='demo') pararDemo();
+    datos=[]; eventos=[]; estado={}; actual={}; lineas.length=0;
+    modo='usb';
+    reiniciarGuardado();
+    consola('— Conectado. Esperando datos del ESP32… —');
+    mostrarEstado('Conectado por USB','ok','ESP32 conectado','Leyendo lo que imprime el ESP32 cada 2 segundos.');
+    pintarTodo();
+    leer();
+  }
+  async function leer(){
+    const dec=new TextDecoderStream();
+    cierre=puerto.readable.pipeTo(dec.writable).catch(()=>{});
+    lector=dec.readable.getReader();
+    let resto='';
+    try{
+      while(true){
+        const {value,done}=await lector.read();
+        if(done) break;
+        resto+=value;
+        let i;
+        while((i=resto.indexOf('\n'))>=0){ procesar(resto.slice(0,i).replace(/\r$/,'')); resto=resto.slice(i+1); }
+      }
+    }catch(e){ error('Se cortó la conexión con el ESP32. Revisá el cable USB y volvé a conectar.'); }
+    await desconectar(true);
+  }
+  async function desconectar(porError){
+    if(modo!=='usb') return;
+    modo='nada';
+    try{ if(lector){ await lector.cancel(); lector.releaseLock(); } }catch(e){}
+    try{ if(cierre) await cierre; }catch(e){}
+    try{ if(puerto) await puerto.close(); }catch(e){}
+    puerto=null; lector=null; cierre=null;
+    mostrarEstado('Sin conectar','','Conectá el ESP32 por USB',porError===true?'La conexión se cortó. Podés volver a conectarlo.':'Desconectado. Podés volver a abrir el Serial Monitor de Arduino IDE.');
+  }
+  if('serial' in navigator) navigator.serial.addEventListener('disconnect',e=>{ if(puerto && e.target===puerto){ error('Se desenchufó el ESP32.'); desconectar(true); } });
+  $('bConectar').onclick=conectar;
+  $('bDesconectar').onclick=()=>desconectar(false);
+
+  // ---------- Datos de ejemplo (para mostrar la página sin el ESP32) ----------
+  let reloj=null;
+  function simular(ts){
+    const d=new Date(ts), h=d.getHours()+d.getMinutes()/60;
+    const base=21+5.5*Math.sin((h-9)/24*2*Math.PI)+Math.sin(ts/900000)*0.8;
+    const pres=((Math.floor(ts/600000))%3)!==2;
+    const temp=base+(pres?1.4:0)+(Math.random()-.5)*.3;
+    const hum=62-(temp-21)*2.2+(Math.random()-.5)*1.2;
+    return {t:ts,temp:+temp.toFixed(1),hum:Math.round(hum),pres};
+  }
+  function bloque(p){
+    const aire=p.pres&&p.temp>=27, vent=p.pres&&!aire&&p.temp>=24;
+    return ['--------------------','Temperatura: '+p.temp.toFixed(2),'Humedad: '+p.hum.toFixed(2),'Personas: '+(p.pres?'SI':'NO'),'Nivel de luz: 2100',
+      'Cortina: ABIERTA','Luces: '+(p.pres?'ENCENDIDAS':'APAGADAS'),'Ventilador: '+(vent?'ENCENDIDO':'APAGADO'),'Aire acondicionado: '+(aire?'ENCENDIDO':'APAGADO'),'Modo: AUTOMATICO'];
+  }
+  function demo(){
+    error(''); datos=[]; eventos=[]; estado={}; actual={}; lineas.length=0;
+    modo='demo';
+    const ahora=Date.now();
+    for(let ts=ahora-3600e3; ts<ahora; ts+=INTERVALO*1000){ const p=simular(ts); const prev=datos[datos.length-1]; if(prev&&p.pres!==prev.pres) eventos.push({t:ts,pres:p.pres}); datos.push(p); }
+    const tick=()=>{ bloque(simular(Date.now())).forEach(procesar); };
+    tick(); reloj=setInterval(tick,INTERVALO*1000);
+    mostrarEstado('Datos de ejemplo','ac','Mostrando datos de ejemplo','Son datos inventados para ver cómo funciona la página. Conectá el ESP32 para ver los reales.');
+    $('bDemo').textContent='Datos de ejemplo activos'; $('bDemo').disabled=true;
+  }
+  function pararDemo(){ clearInterval(reloj); reloj=null; $('bDemo').textContent='Ver datos de ejemplo'; $('bDemo').disabled=false; }
+  $('bDemo').onclick=demo;
+
+  // ---------- Pintar ----------
+  function pintarTodo(){ pintarVivo(); pintarEquipos(); pintarEventos(); pintarGrafico(); }
+
+  function pintarVivo(){
+    const t=estado.temp, h=estado.hum;
+    if(t==null){
+      $('vTemp').textContent='--'; $('aguja').hidden=true;
+      $('zona').textContent=datos.length||modo!=='nada'?'Sin dato':'--'; $('zona').className='chip';
+      $('zonaTxt').textContent=modo==='nada'?'Conectá el ESP32 para ver la temperatura del aula.':'El sensor no está dando la temperatura: revisá los cables del DHT11.';
+    }else{
+      $('vTemp').innerHTML=fmt(t)+'<small> °C</small>';
+      $('aguja').hidden=false; $('aguja').style.left=Math.max(0,Math.min(100,(t-16)/18*100))+'%';
+      let z,txt;
+      if(t<24){z='Confortable';txt='Por debajo de 24 °C: no hace falta ventilar.';}
+      else if(t<27){z='Templado';txt='Entre 24 y 27 °C: con gente, el sistema prende el ventilador.';}
+      else{z='Caluroso';txt='27 °C o más: con gente, el sistema prende el aire.';}
+      $('zona').textContent=z; $('zona').className='chip'+(t>=27?' bad':t>=24?' ac':'');
+      $('zonaTxt').textContent=txt;
+    }
+    $('vHum').innerHTML=h==null?'--':Math.round(h)+'<small> %</small>';
+    $('nHum').textContent=h==null?'--':h<40?'Ambiente seco':h>65?'Ambiente húmedo':'Rango normal';
+    if(estado.pres==null){ $('vPres').textContent='--'; $('nPres').textContent='--'; $('icoPres').className='ico'; }
+    else{
+      $('vPres').textContent=estado.pres?'Hay gente':'Aula vacía';
+      $('icoPres').className='ico'+(estado.pres?' on':'');
+      const ult=eventos[eventos.length-1];
+      $('nPres').textContent=ult?'Desde las '+hora(ult.t):'Sin cambios todavía';
+    }
+  }
+
+  function pintarEquipos(){
+    const marca=(id,v)=>{ const el=$(id); el.textContent=lindo(v); el.style.color=v&&/^(ENCENDID|CERRAD)/i.test(v)?'var(--accent)':''; };
+    marca('eAire',estado.aire); marca('eVent',estado.vent); marca('eLuces',estado.luces); marca('eCortina',estado.cortina);
+    $('eLuz').textContent=estado.luz==null?'--':estado.luz+' de 4095';
+    $('modoChip').textContent=estado.modo?lindo(estado.modo):'--';
+    $('modoChip').className='chip'+(estado.modo?' ac':'');
+  }
+
+  function pintarEventos(){
+    const lista=eventos.slice(-6).reverse();
+    $('eventos').innerHTML=lista.map(e=>`<li><span class="ico${e.pres?' on':''}"><svg class="ic"><use href="#i-users"/></svg></span><div>${e.pres?'Entró gente':'El aula quedó vacía'}</div><span class="h">${hora(e.t)}</span></li>`).join('')||'<li>Todavía no hay cambios.</li>';
+    $('evRes').textContent=eventos.length?eventos.length+(eventos.length===1?' cambio':' cambios'):'--';
+  }
+
+  function pintarGrafico(){
+    const desde=Date.now()-minutos*60e3;
+    let pts=datos.filter(p=>p.t>=desde && p.temp!=null);
+    if(pts.length<2){ $('chart').innerHTML='<p class="vacio">'+(modo==='nada'?'El gráfico aparece con las primeras lecturas.':'Juntando lecturas…')+'</p>'; return; }
+    const paso=Math.max(1,Math.floor(pts.length/240)); pts=pts.filter((_,i)=>i%paso===0||i===pts.length-1);
+    const W=900,H=260,L=40,R=40,T=14,B=28,iw=W-L-R,ih=H-T-B;
+    const t0=pts[0].t,t1=pts[pts.length-1].t;
+    const x=t=>L+(t-t0)/(t1-t0||1)*iw;
+    const tMin=Math.floor(Math.min(...pts.map(p=>p.temp),23)-1),tMax=Math.ceil(Math.max(...pts.map(p=>p.temp),28)+1);
+    const yT=v=>T+(1-(v-tMin)/(tMax-tMin))*ih;
+    const yH=v=>T+(1-(v-20)/80)*ih;
+    let s='', ini=null;
+    pts.forEach((p,i)=>{ if(p.pres&&ini===null)ini=p.t; if((!p.pres||i===pts.length-1)&&ini!==null){s+=`<rect class="g-pres" x="${x(ini)}" y="${T}" width="${Math.max(1,x(p.t)-x(ini))}" height="${ih}"/>`;ini=null;} });
+    const pasoT=(tMax-tMin)>8?2:1;
+    for(let v=tMin;v<=tMax;v+=pasoT){s+=`<line class="g-grid" x1="${L}" x2="${W-R}" y1="${yT(v)}" y2="${yT(v)}"/><text class="g-eje" x="${L-8}" y="${yT(v)+4}" text-anchor="end">${v}°</text>`;}
+    [20,40,60,80,100].forEach(v=>{s+=`<text class="g-eje" x="${W-R+8}" y="${yH(v)+4}">${v}%</text>`;});
+    [24,27].forEach(u=>{if(u>tMin&&u<tMax)s+=`<line class="g-u" x1="${L}" x2="${W-R}" y1="${yT(u)}" y2="${yT(u)}"/><text class="g-ut" x="${L+6}" y="${yT(u)-5}">${u} °C</text>`;});
+    for(let i=0;i<=4;i++){const t=t0+(t1-t0)*i/4;s+=`<text class="g-eje" x="${x(t)}" y="${H-8}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${hora(t)}</text>`;}
+    const lt=pts.map(p=>`${x(p.t).toFixed(1)},${yT(p.temp).toFixed(1)}`).join(' ');
+    s+=`<polygon class="g-area" points="${L},${T+ih} ${lt} ${W-R},${T+ih}"/>`;
+    const conHum=pts.filter(p=>p.hum!=null);
+    if(conHum.length>1) s+=`<polyline class="g-h" points="${conHum.map(p=>`${x(p.t).toFixed(1)},${yH(p.hum).toFixed(1)}`).join(' ')}"/>`;
+    s+=`<polyline class="g-t" points="${lt}"/>`;
+    const u=pts[pts.length-1];
+    s+=`<circle cx="${x(u.t)}" cy="${yT(u.temp)}" r="5" fill="var(--accent)" stroke="var(--bg)" stroke-width="2"/>`;
+    $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperatura y humedad de los últimos ${minutos} minutos">${s}</svg>`;
+  }
+
+  $('rango').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    minutos=+b.dataset.m;[...$('rango').children].forEach(x=>x.classList.toggle('activo',x===b));pintarGrafico();});
+  $('bTema').addEventListener('click',()=>{const r=document.documentElement;
+    const osc=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme=osc?'light':'dark';});
+
+  // =====================================================================
+  // BASE DE DATOS (Microsoft Access)
+  // La página le pide los datos al servidor local (servidor.mjs), que lee y escribe
+  // ClimControl.accdb (el conector es "Conectar base de datos.bat").
+  // Publicada en Vercel, le pide los datos al conector de la computadora donde se abre
+  // (http://localhost:5500). Si el conector no está abierto, la página funciona igual,
+  // con el ingreso de prueba y sin guardar datos.
+  // =====================================================================
+  let hayBase=false, errorBase=null;
+  let perfil=null;    // { nombre, rol } del usuario que entró
+  let aulas=[], consultas=[];
+  const token={ leer(){try{return sessionStorage.getItem('aula_token');}catch(e){return null;}},
+                guardar(t){try{t?sessionStorage.setItem('aula_token',t):sessionStorage.removeItem('aula_token');}catch(e){}} };
+
+  // En esta computadora la página habla con el conector en la misma dirección; publicada en Vercel, se lo pide a localhost
+  const EN_CONECTOR=/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port==='5500';
+  const API=(EN_CONECTOR?'':'http://localhost:5500')+'/api/';
+
+  async function api(ruta,datos){
+    const op={headers:{}};
+    const t=token.leer(); if(t) op.headers.Authorization='Bearer '+t;
+    if(datos!==undefined){ op.method='POST'; op.headers['Content-Type']='application/json'; op.body=JSON.stringify(datos); }
+    let r;
+    try{ r=await fetch(API+ruta,op); }catch(e){ const x=new Error('No se pudo hablar con el conector. ¿Está abierta la ventana de «Conectar base de datos.bat»?'); x.sinConector=true; throw x; }
+    let cuerpo={}; try{ cuerpo=await r.json(); }catch(e){}
+    if(r.status===401 && ruta!=='ingresar' && perfil){ volverAlIngreso(cuerpo.error||'La sesión se cerró. Volvé a ingresar.'); }
+    if(!r.ok) throw new Error(cuerpo.error||('Error '+r.status));
+    return cuerpo;
+  }
+  // ¿La página la sirve el servidor local con la base de Access?
+  const detectarBase=(async()=>{
+    if(!/^https?:$/.test(location.protocol)) return;
+    try{
+      let e;
+      for(let i=0;i<40;i++){   // si la base todavía se está abriendo, espera hasta 40 segundos
+        const r=await fetch(API+'estado',{cache:'no-store'});
+        if(!r.ok) return;
+        e=await r.json();
+        if(!e.iniciando) break;
+        await new Promise(ok=>setTimeout(ok,1000));
+      }
+      hayBase=!!e.base; errorBase=e.base?null:(e.error||'tardó demasiado en abrir. Cerrá la ventana negra y volvé a abrir «Conectar base de datos.bat».');
+    }catch(e){}
+  })();
+
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const horaSeg=ts=>new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+  const fechaHora=v=>new Date(v).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  // Cómo se muestra cada valor que devuelve Access
+  const valor=v=>v===true?'Sí':v===false?'No':v==null?'—':typeof v==='number'?String(v).replace('.',','):/^\d{4}-\d\d-\d\dT/.test(v)?fechaHora(v):v;
+  function tabla(cab,filas){
+    if(!filas.length) return '<p class="vacio">La consulta no devolvió datos.</p>';
+    return '<table class="tabla"><thead><tr>'+cab.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+
+      filas.map(f=>'<tr>'+f.map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+  }
+
+  // ---------- Guardar lo que llega del ESP32 ----------
+  const GUARDAR_CADA_MS=10000;   // una lectura cada 10 segundos; los eventos, apenas cambia un equipo
+  const EQUIPOS=['aire','ventilador','luces','cortina'];
+  const guardado={ ultima:0, cantidad:0, ocupado:false, previo:null };
+  const prendido=v=>!!v && /^(ENCENDID|CERRAD)/i.test(v);
+  function reiniciarGuardado(){ guardado.ultima=0; guardado.cantidad=0; guardado.previo=null; textoGuardado(); }
+  function textoGuardado(txt,clase){
+    const el=$('guardadoTxt');
+    if(txt){ el.textContent=txt; el.className='guardado'+(clase?' '+clase:''); return; }
+    el.className='guardado';
+    el.textContent=modo==='usb'
+      ? 'Guardando en Access: '+guardado.cantidad+(guardado.cantidad===1?' lectura':' lecturas')+(guardado.ultima?' · la última a las '+horaSeg(guardado.ultima):'')
+      : 'Los datos se guardan en la base de Access mientras el ESP32 está conectado.';
+  }
+  async function guardarEnBase(){
+    if(!hayBase || !perfil || modo!=='usb' || guardado.ocupado) return;
+    const aula=parseInt($('selAula').value,10);
+    if(!aula) return;
+    const ahora={ aire:prendido(estado.aire), ventilador:prendido(estado.vent), luces:prendido(estado.luces), cortina:prendido(estado.cortina) };
+    // al conectar, solo se registra lo que ya está prendido
+    const eventosNuevos=EQUIPOS.filter(k=>ahora[k]!==(guardado.previo?guardado.previo[k]:false)).map(k=>({equipo:k,encendido:ahora[k]}));
+    const tocaLectura=Date.now()-guardado.ultima>=GUARDAR_CADA_MS;
+    if(!eventosNuevos.length && !tocaLectura) return;
+    const previoAnterior=guardado.previo;
+    guardado.previo=ahora;
+    guardado.ocupado=true;
+    try{
+      if(eventosNuevos.length) await api('eventos',{idAula:aula,eventos:eventosNuevos});
+      if(tocaLectura){
+        await api('lecturas',{idAula:aula,temperatura:estado.temp??null,humedad:estado.hum??null,hayPersonas:!!estado.pres});
+        guardado.ultima=Date.now(); guardado.cantidad++;
+      }
+      textoGuardado(); actualizarVivo();
+    }catch(e){
+      guardado.previo=previoAnterior;
+      textoGuardado('No se pudo guardar en Access ('+e.message+'). Se reintenta con la próxima lectura.','mal');
+    }
+    guardado.ocupado=false;
+  }
+
+  // ---------- Aulas ----------
+  async function cargarAulas(){
+    try{ aulas=(await api('aulas')).aulas; }
+    catch(e){ $('cError').textContent='No se pudieron leer las aulas: '+e.message; $('cError').hidden=false; return; }
+    const opciones=aulas.map(a=>'<option value="'+a.IdAula+'">'+esc(a.Nombre)+'</option>').join('');
+    const elegida=$('selAula').value;
+    $('selAula').innerHTML=opciones;
+    if(elegida && aulas.some(a=>String(a.IdAula)===elegida)) $('selAula').value=elegida;
+    const admin=!!(perfil && perfil.rol==='superadmin');
+    $('seccionAulas').hidden=!admin;
+    $('aulasLista').innerHTML=tabla(['N°','Aula','Encargado'],aulas.map(a=>[a.IdAula,a.Nombre,a.Encargado||'—']));
+    if(admin){
+      try{
+        const u=(await api('usuarios')).usuarios;
+        $('aEncargado').innerHTML='<option value="">Sin encargado</option>'+u.map(x=>'<option value="'+x.IdUsuario+'">'+esc(x.Nombre)+'</option>').join('');
+      }catch(e){}
+    }
+  }
+  $('formAula').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const err=$('aError'), nombre=$('aNombre').value.trim();
+    err.hidden=true;
+    if(!nombre){ err.textContent='Escribí el nombre del aula.'; err.hidden=false; return; }
+    const encargado=parseInt($('aEncargado').value,10);
+    try{ await api('aulas',{nombre,idEncargado:isNaN(encargado)?null:encargado}); }
+    catch(x){ err.textContent=x.message; err.hidden=false; return; }
+    $('aNombre').value='';
+    cargarAulas();
+  });
+
+  // ---------- Consultas (están guardadas en la base de Access; se leen de ahí con su SQL) ----------
+  function mostrarConsulta(){
+    const c=consultas.find(x=>x.nombre===$('cConsulta').value);
+    $('cDesc').textContent=c?c.descripcion||'':'';
+    $('cSql').textContent=c?c.sql.trim():'';
+    $('cResultado').innerHTML=''; $('cResumen').textContent=''; $('cError').hidden=true;
+  }
+  async function cargarConsultas(){
+    try{ consultas=(await api('consultas')).consultas; }catch(e){ consultas=[]; }
+    $('cConsulta').innerHTML=consultas.map(c=>'<option value="'+esc(c.nombre)+'">'+esc(c.nombre)+'</option>').join('');
+    $('cConsulta').disabled=!consultas.length; $('bConsultar').disabled=!consultas.length;
+    mostrarConsulta();
+  }
+  $('cConsulta').onchange=mostrarConsulta;
+  $('bConsultar').onclick=async()=>{
+    const err=$('cError'), nombre=$('cConsulta').value;
+    err.hidden=true;
+    if(!hayBase || !perfil || !nombre){ $('cSinBase').hidden=false; return; }
+    $('bConsultar').disabled=true; $('cResumen').textContent='Consultando…';
+    try{
+      const r=await api('consultas/ejecutar?nombre='+encodeURIComponent(nombre));
+      $('cResultado').innerHTML=tabla(r.columnas,r.filas.map(f=>f.map(valor)));
+      $('cResumen').textContent=r.filas.length+(r.filas.length===1?' fila':' filas')+' · consultado a las '+horaSeg(Date.now());
+    }catch(e){
+      err.textContent='Access respondió con un error: '+e.message; err.hidden=false; $('cResumen').textContent='';
+    }
+    $('bConsultar').disabled=false;
+  };
+
+  // ---------- La base en vivo: lo último que se guardó en Access ----------
+  let relojVivo=null;
+  async function actualizarVivo(){
+    if(!hayBase || !perfil || $('app').hidden) return;
+    try{
+      const r=await api('ultimos');
+      $('vivoNL').textContent='('+r.totalLecturas+' en total)'; $('vivoNE').textContent='('+r.totalEventos+' en total)';
+      $('vivoLecturas').innerHTML=r.lecturas.length
+        ? tabla(['Aula','Fecha y hora','Temp.','Humedad','Gente'],r.lecturas.map(l=>[l.Aula,valor(l.FechaHora),valor(l.Temperatura),valor(l.Humedad),valor(l.HayPersonas)]))
+        : '<p class="vacio">Todavía no hay lecturas. Conectá el ESP32 y se van a ir guardando acá.</p>';
+      $('vivoEventos').innerHTML=r.eventos.length
+        ? tabla(['Aula','Fecha y hora','Equipo','Estado'],r.eventos.map(e=>[e.Aula,valor(e.FechaHora),e.Equipo,e.Encendido?'Prendido':'Apagado']))
+        : '<p class="vacio">Todavía no hay eventos. Aparecen cuando un equipo se prende o se apaga.</p>';
+      $('vivoRes').textContent='Se actualiza solo · '+horaSeg(Date.now());
+    }catch(e){ $('vivoRes').textContent='Sin respuesta del conector'; }
+  }
+  function vivo(prender){ clearInterval(relojVivo); relojVivo=null; if(prender){ actualizarVivo(); relojVivo=setInterval(actualizarVivo,3000); } }
+
+  function prepararBase(){
+    const conectada=!!(hayBase && perfil);
+    $('bdBox').hidden=!conectada;
+    $('seccionVivo').hidden=!conectada;
+    document.querySelector('#seccionConsultas .consulta-form').style.display=conectada?'':'none';
+    document.querySelector('#seccionConsultas details.sql').style.display=conectada?'':'none';
+    $('cSinBase').hidden=conectada;
+    if(errorBase) $('cSinBase').textContent='El conector no pudo abrir la base de Access: '+errorBase;
+    vivo(conectada);
+    $('bdTxt').textContent=conectada?'Access · '+perfil.nombre:'Sin conectar';
+    $('bdChip').className='chip'+(conectada?' ok':'');
+    if(conectada){ cargarAulas(); cargarConsultas(); }
+    else { $('seccionAulas').hidden=true; consultas=[]; $('cConsulta').innerHTML=''; mostrarConsulta(); }
+  }
+
+  // ---------- Ingreso ----------
+  // Con la base: usuario y contraseña de la tabla Usuarios de Access (el servidor compara la contraseña cifrada).
+  // Sin la base: ingreso de prueba con los mismos usuarios (no es seguridad real). Están las claves cifradas, no las claves.
+  const USUARIOS={ octavio:'f623bafb1306ef1b5597c1d1cfbbc3463c6066d312e1259dbda06b1d69d1e15b',
+                   facundo:'39531a9898d2b90cb493e798dcf72914f326c4ca1d8836fa0135be17f80cbc4f' };
+  async function sha256(s){
+    if(!window.crypto || !crypto.subtle) return '';
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+  const recordar={ leer(){try{return sessionStorage.getItem('aula_sesion');}catch(e){return null;}},
+                   guardar(u){try{u?sessionStorage.setItem('aula_sesion',u):sessionStorage.removeItem('aula_sesion');}catch(e){}} };
+  function entrar(){
+    $('pantallaLogin').hidden=true; $('app').hidden=false;
+    pintarTodo(); prepararBase();
+  }
+  function volverAlIngreso(msg){
+    perfil=null; token.guardar(null); recordar.guardar(null); vivo(false);
+    $('app').hidden=true; $('pantallaLogin').hidden=false;
+    if(msg){ $('lError').textContent=msg; $('lError').hidden=false; }
+    $('lUsuario').focus();
+  }
+  $('formLogin').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const u=$('lUsuario').value.trim(), c=$('lClave').value, err=$('lError');
+    const fallo=t=>{ err.textContent=t; err.hidden=false; $('lClave').value=''; };
+    if(!u||!c) return fallo('Completá el usuario y la contraseña.');
+    err.hidden=true;
+    await detectarBase;
+    if(hayBase){
+      try{
+        const r=await api('ingresar',{usuario:u,clave:c});
+        token.guardar(r.token); perfil={nombre:r.nombre,rol:r.rol};
+        $('lClave').value=''; entrar(); return;
+      }catch(x){
+        if(!x.sinConector) return fallo(x.message);
+        hayBase=false;   // se cerró el conector: sigue con el ingreso de prueba, sin base
+      }
+    }
+    if(!USUARIOS[u.toLowerCase()] || USUARIOS[u.toLowerCase()]!==await sha256(c)) return fallo('El usuario o la contraseña no coinciden.');
+    $('lClave').value=''; recordar.guardar(u); entrar();
+  });
+  $('bSalir').onclick=async()=>{
+    await desconectar(false); if(modo==='demo'){ pararDemo(); modo='nada'; mostrarEstado('Sin conectar','','Conectá el ESP32 por USB','Lee los mismos datos que muestra el Serial Monitor de Arduino IDE.'); }
+    if(hayBase && token.leer()){ try{ await api('salir',{}); }catch(e){} }
+    volverAlIngreso(); prepararBase();
+  };
+
+  window.monitorProcesar=procesar;   // para probar la lectura sin el ESP32
+  mostrarConsulta();
+  (async()=>{
+    await detectarBase;
+    if(hayBase && token.leer()){
+      try{ const s=await api('sesion'); perfil={nombre:s.nombre,rol:s.rol}; return entrar(); }catch(e){ token.guardar(null); }
+    }
+    else if(!hayBase && recordar.leer()) return entrar();
+    $('lUsuario').focus(); pintarTodo();
+  })();
+})();
+</script>
+</body>
+</html>
