@@ -220,12 +220,15 @@ pre.codigo{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius
 /* Diálogo */
 dialog{border:1px solid var(--edge);border-radius:20px;padding:0;background:var(--surface-solida);color:var(--text);box-shadow:var(--sombra);width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
 dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog{overflow-x:hidden}
+dialog .pasos{margin-top:0}
 dialog .dl{padding:22px 22px 18px;display:flex;flex-direction:column;gap:12px}
 dialog h2{font-size:19px}
 dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
 .cred{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center;font-size:15px}
 .cred span{color:var(--muted)}
 .cred code{font:600 15px var(--mono);overflow-wrap:anywhere}
+.vinc{font:700 34px/1.2 var(--mono);letter-spacing:.12em;text-align:center;padding:14px;border-radius:14px;background:var(--surface-2);user-select:all}
 
 @media (max-width:860px){.vivo,.g2{grid-template-columns:1fr}.lado{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
 @media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:84px}.kpis{grid-template-columns:1fr 1fr}.kpi .v{font-size:24px}.card{padding:18px}.rangos{grid-template-columns:1fr 1fr}.rangos .rt{grid-column:1/-1}.rangos .rh0{display:none}}
@@ -319,7 +322,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
         <div class="acciones"><a class="boton" href="#aulas">Agregar mi primera aula</a></div>
       </div>
       <div id="inicioDatos" class="vista">
-        <p class="aviso" id="inicioEsperando" hidden>Esta aula todavía no recibió datos. Cargá el código y la clave en la ESP32 (en <b>Aulas → Dispositivo</b>) y conectala al WiFi.</p>
+        <p class="aviso" id="inicioEsperando" hidden>Esta aula todavía no recibió datos. Vinculá su aparato desde <b>Aulas → Dispositivo → Vincular un aparato</b>.</p>
         <section class="vivo" aria-live="polite">
           <div class="card temp">
             <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Temperatura</h2><span class="chip" id="zona">--</span></div>
@@ -369,7 +372,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
           <button class="boton sec" type="button" id="bCancelarAula">Cancelar</button>
         </div>
         <p class="error" id="aulaError" role="alert" hidden style="margin-top:10px"></p>
-        <p class="nota" style="margin-top:10px">Al crearla te damos un código y una clave para cargar en la ESP32 de esa aula.</p>
+        <p class="nota" style="margin-top:10px">Al crearla te damos un código para vincular el aparato de esa aula por WiFi.</p>
       </form>
       <div class="grid-aulas" id="listaAulas"></div>
     </section>
@@ -552,7 +555,7 @@ function mensaje(e){
     [/check constraint/i, 'Algún valor está fuera de rango.'],
     [/JWT expired|refresh token|not authenticated|session/i, 'La sesión venció. Volvé a ingresar.'],
     [/Failed to fetch|NetworkError|Load failed|fetch/i, 'No hay conexión con el servidor. Revisá internet y probá de nuevo.'],
-    [/does not exist|schema cache|Could not find/i, 'La base de datos todavía no está preparada: falta correr supabase/climcontrol.sql en Supabase.'],
+    [/does not exist|schema cache|Could not find/i, 'La base de datos no está actualizada: falta correr en Supabase los archivos de la carpeta supabase (climcontrol.sql y 02_vinculacion.sql).'],
   ];
   for (const [re, txt] of tabla) if (re.test(m)) return txt;
   return 'Algo salió mal: ' + m;
@@ -587,6 +590,7 @@ function apiSupabase(){
     async renombrarAula(id, nombre){ r(await sb.from('aulas').update({ nombre }).eq('id', id)); },
     async borrarAula(id){ r(await sb.from('aulas').delete().eq('id', id)); },
     async nuevaClave(id){ return r(await sb.rpc('nueva_clave_dispositivo', { p_aula:id })); },
+    async generarVinculacion(id){ return r(await sb.rpc('generar_codigo_vinculacion', { p_aula:id })); },
     async grafico(aula, desde, paso){ return r(await sb.rpc('lecturas_grafico', { p_aula:aula, p_desde:desde.toISOString(), p_paso_seg:paso })); },
     async eventos(aula, n){ return r(await sb.from('eventos').select('fecha_hora, equipo, encendido').eq('aula_id', aula).order('fecha_hora', { ascending:false }).limit(n)); },
     async consumoPorDia(desde, hasta){ return r(await sb.rpc('consumo_por_dia', { p_desde:desde.toISOString(), p_hasta:hasta.toISOString() })); },
@@ -624,6 +628,7 @@ function apiDemo(){
     return { t:ts, temperatura:Math.round(temp * 10) / 10, humedad:Math.round(hum * 10) / 10, hay_personas:gente, ventilador, aire, luces };
   }
   const aula = id => st.aulas.find(a => a.id === +id);
+  const codigoVinc = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => '23456789ABCDEFGHJKMNPQRSTUVWXYZ'[b % 31]).join('');
   const ultimoTs = a => Math.floor((a.hasta || Date.now()) / 1e4) * 1e4;
   function eventosDe(a, desde){
     const lista = []; let prev = null;
@@ -652,7 +657,8 @@ function apiDemo(){
         const ts = ultimoTs(a), p = simular(a, ts);
         return { aula_id:a.id, nombre:a.nombre, codigo:a.codigo, ultimo_contacto:p ? new Date(a.hasta || Date.now() - 3000).toISOString() : null,
                  fecha_hora:p ? new Date(ts).toISOString() : null, temperatura:p?.temperatura ?? null, humedad:p?.humedad ?? null,
-                 hay_personas:p?.hay_personas ?? null, ventilador:p?.ventilador ?? null, aire:p?.aire ?? null, luces:p?.luces ?? null };
+                 hay_personas:p?.hay_personas ?? null, ventilador:p?.ventilador ?? null, aire:p?.aire ?? null, luces:p?.luces ?? null,
+                 vinculacion:a.vinculacion || null, vinculacion_vence:a.vence || null };
       }).sort((x, y) => x.nombre.localeCompare(y.nombre)));
     },
     async crearAula(nombre){
@@ -660,14 +666,15 @@ function apiDemo(){
       if (!nombre || nombre.length > 60) throw new Error('NOMBRE_INVALIDO');
       if (st.aulas.some(a => a.nombre.toLowerCase() === nombre.toLowerCase())) throw new Error('NOMBRE_REPETIDO');
       const codigo = 'CC-' + Math.random().toString(16).slice(2, 8).toUpperCase().padEnd(6, '0');
-      const a = { id:st.siguiente++, nombre, codigo, base:0, nueva:true }; st.aulas.push(a);
-      return espera({ aula_id:a.id, codigo, clave:crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '') });
+      const a = { id:st.siguiente++, nombre, codigo, base:0, nueva:true, vinculacion:codigoVinc(), vence:new Date(Date.now() + 18e5).toISOString() }; st.aulas.push(a);
+      return espera({ aula_id:a.id, codigo, vinculacion:a.vinculacion, vence:a.vence, clave:crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '') });
     },
     async renombrarAula(id, nombre){
       if (st.aulas.some(a => a.id !== id && a.nombre.toLowerCase() === nombre.trim().toLowerCase())) throw new Error('NOMBRE_REPETIDO');
       aula(id).nombre = nombre.trim(); return espera();
     },
     async borrarAula(id){ st.aulas = st.aulas.filter(a => a.id !== id); return espera(); },
+    async generarVinculacion(id){ const a = aula(id); a.vinculacion = codigoVinc(); a.vence = new Date(Date.now() + 18e5).toISOString(); return espera({ vinculacion:a.vinculacion, vence:a.vence }); },
     async nuevaClave(id){ return espera({ codigo:aula(id).codigo, clave:crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '') }); },
     async grafico(id, desde, paso){
       const a = aula(id); if (!a) return [];
@@ -725,13 +732,19 @@ const VISTAS = { inicio:'Inicio', aulas:'Aulas', consumos:'Consumos', consultas:
 const supabaseListo = !!(SUPABASE_URL && SUPABASE_CLAVE && window.supabase);
 
 // ---------- Diálogo genérico ----------
+// Cada botón resuelve el diálogo directamente (no depende del evento "close")
 function dialogo({ titulo, html, botones }){
-  const d = $('dlg');
+  const d = $('dlg'), form = $('dlgForm'), acc = $('dlgAcc');
   $('dlgTitulo').textContent = titulo; $('dlgCuerpo').innerHTML = html;
-  $('dlgAcc').innerHTML = botones.map((b, i) => `<button class="boton ${b.clase || ''}" value="${i}" ${b.submit ? '' : 'formnovalidate'}>${esc(b.txt)}</button>`).join('');
+  acc.innerHTML = botones.map((b, i) => `<button type="button" class="boton ${b.clase || ''}" data-i="${i}">${esc(b.txt)}</button>`).join('');
   return new Promise(ok => {
-    d.onclose = () => ok(d.returnValue === '' ? null : botones[+d.returnValue]?.valor ?? null);
-    d.returnValue = ''; d.showModal();
+    let listo = false;
+    const fin = v => { if (listo) return; listo = true; d.onclose = d.oncancel = form.onsubmit = acc.onclick = null; if (d.open) d.close(); ok(v); };
+    acc.onclick = e => { const b = e.target.closest('button[data-i]'); if (b) fin(botones[+b.dataset.i].valor ?? null); };
+    form.onsubmit = e => { e.preventDefault(); const b = botones.find(x => x.submit); fin(b ? b.valor : null); };   // Enter en un campo
+    d.oncancel = e => { e.preventDefault(); fin(null); };   // tecla Escape
+    d.onclose = () => fin(null);
+    d.showModal();
     const foco = d.querySelector('input') || d.querySelector('.dl-acc .boton:last-child'); if (foco) foco.focus();
   });
 }
@@ -980,7 +993,7 @@ function pintarAulas(){
   const cont = $('listaAulas');
   if (!aulas.length){
     cont.innerHTML = `<div class="card" style="grid-column:1/-1"><h2 style="font-size:19px">Agregá tu primera aula</h2>
-      <ol class="pasos"><li>Tocá <b>Agregar aula</b> y ponele un nombre.</li><li>Copiá el <b>código</b> y la <b>clave</b> que te damos en el archivo <b>secretos.h</b> del programa de la ESP32, junto con el nombre y la clave de tu WiFi.</li><li>Subí el programa a la ESP32 con Arduino IDE y enchufala a cualquier cargador de 5 V.</li><li>En unos segundos el aula aparece <b>En línea</b>.</li></ol></div>`;
+      <ol class="pasos"><li>Tocá <b>Agregar aula</b> y ponele un nombre: te damos un <b>código de vinculación</b>.</li><li>Enchufá el aparato ClimControl en el aula y, con el celular, conectate a la red WiFi <b>ClimControl-…</b> que crea.</li><li>En la página que se abre, elegí el WiFi del aula, escribí su clave y el código.</li><li>En menos de un minuto el aula aparece <b>En línea</b>.</li></ol></div>`;
     return;
   }
   cont.innerHTML = aulas.map(a => {
@@ -990,7 +1003,9 @@ function pintarAulas(){
     const datos = a.fecha_hora
       ? `${desconectada ? `<p class="nota">Último dato recibido: ${fechaHora(a.fecha_hora)}</p>` : ''}<div class="aula-datos${desconectada ? ' viejo' : ''}"><span><svg class="ic"><use href="#i-thermo"/></svg>${a.temperatura == null ? '--' : nf1.format(a.temperatura) + ' °C'}</span><span><svg class="ic"><use href="#i-drop"/></svg>${a.humedad == null ? '--' : Math.round(a.humedad) + ' %'}</span><span><svg class="ic"><use href="#i-users"/></svg>${a.hay_personas ? 'Hay gente' : 'Vacía'}</span></div>
          <div class="chips${desconectada ? ' viejo' : ''}">${chip(a.ventilador, 'vent', 'Ventilador')}${chip(a.aire, 'aire', 'Aire')}${chip(a.luces, 'luces', 'Luces')}</div>`
-      : '<p class="nota">Todavía no recibió datos. Cargá el código y la clave en la ESP32.</p>';
+      : (a.vinculacion && new Date(a.vinculacion_vence) > new Date()
+          ? `<p class="nota">Esperando el aparato. Código de vinculación: <b style="color:var(--text);font-family:var(--mono)">${esc(formatoVinc(a.vinculacion))}</b> (vence a las ${hora(a.vinculacion_vence)}).</p>`
+          : '<p class="nota">Todavía no recibió datos. Tocá <b>Dispositivo → Vincular un aparato</b>.</p>');
     return `<article class="card aula" data-id="${a.aula_id}">
       <div class="aula-cab"><h3>${esc(a.nombre)}</h3><span class="chip ${cx.clase}"><span class="dot"></span>${esc(cx.txt)}</span></div>
       ${datos}
@@ -1016,10 +1031,25 @@ $('formAula').addEventListener('submit', async e => {
     $('formAula').hidden = true;
     await refrescarAulas(); pintarAulas();
     aulaSel = r.aula_id; guardarLocal('aula', aulaSel);
-    await mostrarCredenciales(n, r.codigo, r.clave, true);
+    if (r.vinculacion) await mostrarVinculacion(n, r.vinculacion, r.vence, () => mostrarCredenciales(n, r.codigo, r.clave, true));
+    else await mostrarCredenciales(n, r.codigo, r.clave, true);
   } catch (x) { err.textContent = mensaje(x); err.hidden = false; }
   b.disabled = false;
 });
+const formatoVinc = c => c.slice(0, 4) + '-' + c.slice(4);
+async function mostrarVinculacion(nombre, codigo, vence, manual){
+  const html = `<p class="nota">Con este código, el aparato ClimControl de <b>${esc(nombre)}</b> se conecta al WiFi y queda unido a tu cuenta.</p>
+    <div class="vinc" aria-label="Código de vinculación">${esc(formatoVinc(codigo))}</div>
+    <ol class="pasos">
+      <li>Enchufá el aparato en el aula.</li>
+      <li>Con el celular, conectate a la red WiFi <b>ClimControl-…</b> que crea el aparato (aparece en unos segundos).</li>
+      <li>Se abre sola una página. Si no, entrá a <b>192.168.4.1</b>. Elegí el WiFi del aula, escribí su clave y este código.</li>
+      <li>En menos de un minuto el aula aparece <b>En línea</b> acá.</li>
+    </ol>
+    <p class="nota">El código sirve una sola vez y vence a las <b>${hora(vence)}</b>. Si vence, generás otro en Aulas → Dispositivo.</p>`;
+  const r = await dialogo({ titulo:'Vincular el aparato', html, botones:[{ txt:'Cargarlo con Arduino IDE', clase:'sec', valor:'manual' }, { txt:'Listo', valor:'ok' }] });
+  if (r === 'manual') await manual();
+}
 function textoSecretos(codigo, clave){
   return `// secretos.h  (en la carpeta del programa ClimControl_WiFi)
 #define WIFI_NOMBRE        "nombre de tu red WiFi"
@@ -1054,9 +1084,11 @@ $('listaAulas').addEventListener('click', async e => {
   if (acc === 'disp'){
     const cx = conexion(a);
     const r = await dialogo({ titulo:'Dispositivo de ' + a.nombre, html:`<div class="cred"><span>Código</span><code>${esc(a.codigo || '--')}</code><span>Estado</span><b>${esc(cx.txt)}</b><span>Último dato</span><b>${a.ultimo_contacto ? fechaHora(a.ultimo_contacto) : 'Nunca'}</b></div>
-      <p class="nota">La clave no se puede volver a ver porque se guarda cifrada. Si la perdiste o cambiás de ESP32, generá una nueva: la anterior deja de funcionar al instante.</p>`,
-      botones:[{ txt:'Cerrar', clase:'sec', valor:null }, { txt:'Generar clave nueva', valor:'nueva' }] });
-    if (r === 'nueva'){ try { const c = await api.nuevaClave(id); await mostrarCredenciales(a.nombre, c.codigo, c.clave, false); } catch (x) { avisoGlobal(mensaje(x)); } }
+      <p class="nota">Para conectar un aparato nuevo, o el mismo en otro WiFi, tocá <b>Vincular un aparato</b>: te damos un código para escribir en la página del aparato. Si el aparato ya estaba conectado, primero mantené apretado su botón <b>BOOT</b> 5 segundos para que vuelva a crear su red.</p>`,
+      botones:[{ txt:'Cerrar', clase:'sec', valor:null }, { txt:'Cargarlo con Arduino IDE', clase:'sec', valor:'nueva' }, { txt:'Vincular un aparato', valor:'vincular' }] });
+    if (r === 'vincular'){ try { const c = await api.generarVinculacion(id); await mostrarVinculacion(a.nombre, c.vinculacion, c.vence, nuevaClaveManual); } catch (x) { avisoGlobal(mensaje(x)); } }
+    if (r === 'nueva') await nuevaClaveManual();
+    async function nuevaClaveManual(){ try { const c = await api.nuevaClave(id); await mostrarCredenciales(a.nombre, c.codigo, c.clave, false); } catch (x) { avisoGlobal(mensaje(x)); } }
     return;
   }
   if (acc === 'renombrar'){
