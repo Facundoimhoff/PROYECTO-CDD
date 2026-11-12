@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Monitor del Aula</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<title>ClimControl</title>
+<meta name="description" content="Climatización automática de aulas: temperatura, presencia, equipos y consumo de cada aula en tiempo real.">
 <style>
-/* Layout: vidrio esmerilado estilo iOS sobre fondo neutro; una columna con la conexión arriba, lectura en vivo, historial y monitor serie. Paleta reducida: neutros + un acento azul; rojo solo para avisos. */
+/* Vidrio esmerilado sobre fondo neutro, como la versión anterior. Acento azul; cada equipo tiene su color (aire azul, ventilador verde azulado, luces ámbar). */
 :root{
   color-scheme:light;
-  --bg:#eef1f6;--surface:rgba(255,255,255,.62);--surface-2:rgba(118,118,128,.12);--edge:rgba(255,255,255,.8);--border:rgba(60,60,67,.12);
-  --text:#1c1c1e;--muted:#6c6c74;--faint:#a0a0a8;
-  --accent:#007aff;--accent-bg:rgba(0,122,255,.11);--bad:#e0352b;--bad-bg:rgba(255,59,48,.12);--ok:#1f9d55;--ok-bg:rgba(52,199,89,.14);
-  --wall:rgba(0,122,255,.14);--wall-2:rgba(120,130,150,.12);
+  --bg:#eef1f6;--surface:rgba(255,255,255,.66);--surface-solida:#fbfcfe;--surface-2:rgba(118,118,128,.12);--edge:rgba(255,255,255,.85);--border:rgba(60,60,67,.13);
+  --text:#1c1c1e;--muted:#64646c;--faint:#9a9aa2;
+  --accent:#0071e3;--accent-bg:rgba(0,113,227,.11);--bad:#d70015;--bad-bg:rgba(255,59,48,.12);--ok:#1a8a47;--ok-bg:rgba(52,199,89,.15);
+  --c-aire:#0071e3;--c-vent:#0f9bb0;--c-luces:#c77c02;
+  --wall:rgba(0,113,227,.13);--wall-2:rgba(120,130,150,.12);
   --sombra:0 10px 30px rgba(31,45,90,.08),0 1px 2px rgba(31,45,90,.05);
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
   --font-num:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;
@@ -20,122 +21,212 @@
   --blur:blur(28px) saturate(180%);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.55);--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.08);
-  --text:#f5f5f7;--muted:#a3a3ad;--faint:#6f6f79;--accent:#0a84ff;--accent-bg:rgba(10,132,255,.2);--bad:#ff453a;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
-  --wall:rgba(10,132,255,.16);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}}
+  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.6);--surface-solida:#141821;--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.09);
+  --text:#f5f5f7;--muted:#a3a3ad;--faint:#70707a;--accent:#2d9bff;--accent-bg:rgba(45,155,255,.2);--bad:#ff6961;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
+  --c-aire:#2d9bff;--c-vent:#40c8e0;--c-luces:#ffb340;
+  --wall:rgba(45,155,255,.15);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}}
 :root[data-theme="dark"]{
-  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.55);--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.08);
-  --text:#f5f5f7;--muted:#a3a3ad;--faint:#6f6f79;--accent:#0a84ff;--accent-bg:rgba(10,132,255,.2);--bad:#ff453a;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
-  --wall:rgba(10,132,255,.16);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}
+  color-scheme:dark;--bg:#05070d;--surface:rgba(32,36,48,.6);--surface-solida:#141821;--surface-2:rgba(118,118,128,.24);--edge:rgba(255,255,255,.09);--border:rgba(255,255,255,.09);
+  --text:#f5f5f7;--muted:#a3a3ad;--faint:#70707a;--accent:#2d9bff;--accent-bg:rgba(45,155,255,.2);--bad:#ff6961;--bad-bg:rgba(255,69,58,.18);--ok:#32d74b;--ok-bg:rgba(50,215,75,.16);
+  --c-aire:#2d9bff;--c-vent:#40c8e0;--c-luces:#ffb340;
+  --wall:rgba(45,155,255,.15);--wall-2:rgba(255,255,255,.04);--sombra:0 10px 30px rgba(0,0,0,.3)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);font:16px/1.5 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
+h1,h2,h3{margin:0;line-height:1.25;text-wrap:balance}
+p{margin:0}
 .fondo{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(45% 50% at 8% 4%,var(--wall),transparent 70%),radial-gradient(45% 50% at 95% 90%,var(--wall-2),transparent 70%),var(--bg)}
-.wrap{max-width:1040px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ic{width:20px;height:20px;flex:none}
 .logo{width:40px;height:40px;border-radius:12px;background:var(--accent);display:grid;place-items:center;color:#fff;flex:none}
-header .t b{display:block;font-size:18px}
-header .t small{color:var(--muted);font-size:13px}
-.der{margin-left:auto;display:flex;gap:8px;align-items:center}
+.card{background:var(--surface);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--edge);border-radius:22px;padding:20px 22px;box-shadow:var(--sombra);min-width:0}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:99px;font-size:13.5px;font-weight:600;background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
-.chip.ac{background:var(--accent-bg);color:var(--accent)}
-.chip.bad{background:var(--bad-bg);color:var(--bad)}
-.chip.ok{background:var(--ok-bg);color:var(--ok)}
-.btn{border:1px solid var(--edge);background:var(--surface);color:var(--accent);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
-.boton{border:0;border-radius:12px;padding:11px 18px;font:600 15px var(--font);cursor:pointer;background:var(--accent);color:#fff}
+.chip.ac{background:var(--accent-bg);color:var(--accent)} .chip.bad{background:var(--bad-bg);color:var(--bad)} .chip.ok{background:var(--ok-bg);color:var(--ok)}
+.boton{border:0;border-radius:12px;padding:10px 18px;font:600 15px var(--font);cursor:pointer;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
 .boton.sec{background:var(--surface-2);color:var(--text)}
+.boton.peligro{background:var(--bad);color:#fff}
+.boton.chico{padding:7px 12px;font-size:14px;border-radius:10px}
 .boton:disabled{opacity:.45;cursor:not-allowed}
-.card{background:var(--surface);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--edge);border-radius:22px;padding:20px 22px;box-shadow:var(--sombra);min-width:0}
-.ic{width:20px;height:20px;flex:none}
+.enlace{border:0;background:none;color:var(--accent);font:600 15px var(--font);cursor:pointer;padding:0}
+.btn-redondo{border:1px solid var(--edge);background:var(--surface);color:var(--text);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);flex:none}
+.error{color:var(--bad);font-size:14.5px}
+.ok-txt{color:var(--ok);font-size:14.5px}
+.nota{color:var(--muted);font-size:14.5px}
+.vacio{color:var(--muted);text-align:center;padding:28px 10px}
+:focus-visible{outline:3px solid var(--accent-bg);outline-offset:2px}
+
+/* ---------- Ingreso ---------- */
+.login{min-height:100vh;display:grid;place-items:center;padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.login .card{width:100%;max-width:420px;padding:30px 28px}
+.login h1{font-size:26px;margin:18px 0 4px}
+.login .sub{color:var(--muted);font-size:15px}
+.login form{display:flex;flex-direction:column;gap:14px;margin-top:20px}
+.login .boton{width:100%;height:46px}
+.login .pie{margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center}
+.aviso{padding:12px 14px;border-radius:12px;background:var(--surface-2);color:var(--muted);font-size:14.5px}
+.aviso.ok{background:var(--ok-bg);color:var(--text)}
+.campo{display:flex;flex-direction:column;gap:6px;min-width:0}
+.campo label{font-size:14px;font-weight:600}
+.campo .ayuda{font-size:13px;color:var(--muted)}
+input,select{height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:16px var(--font);min-width:0;width:100%}
+input:focus,select:focus{outline:3px solid var(--accent-bg);border-color:var(--accent)}
+input[readonly]{color:var(--muted)}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:2px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:500;padding:6px 14px;border-radius:8px;cursor:pointer}
+.seg button.activo{background:var(--surface-solida);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12)}
+.login .seg{display:flex;margin-top:20px}.login .seg button{flex:1}
+
+/* ---------- Barra, menú hamburguesa ---------- */
+.barra{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));background:var(--surface);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--border)}
+.barra .titulo{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.barra .titulo b{font-size:17px}
+.barra .titulo small{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barra .der{margin-left:auto;display:flex;gap:8px;align-items:center}
+.velo{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.32);opacity:0;pointer-events:none;transition:opacity .2s}
+.velo.abierto{opacity:1;pointer-events:auto}
+.cajon{position:fixed;z-index:31;top:0;bottom:0;left:0;width:min(300px,86vw);background:var(--surface-solida);border-right:1px solid var(--border);box-shadow:var(--sombra);transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;padding:16px 12px max(16px,env(safe-area-inset-bottom,0px));overflow-y:auto}
+.cajon.abierto{transform:none}
+.cajon .quien{display:flex;gap:12px;align-items:center;padding:6px 8px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.cajon .quien b{display:block;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cajon .quien small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cajon .quien>div{min-width:0}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+.menu{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.menu a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;color:var(--text);text-decoration:none;font-weight:500}
+.menu a:hover{background:var(--surface-2)}
+.menu a[aria-current="page"]{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.menu .sep{height:1px;background:var(--border);margin:8px 6px}
+.cajon .salir{margin-top:auto;padding-top:12px}
+.cajon .salir button{width:100%;justify-content:flex-start;gap:12px;background:none;color:var(--bad);padding:11px 12px}
+
+/* ---------- Contenido ---------- */
+.wrap{max-width:1080px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.vista{display:flex;flex-direction:column;gap:16px}
+.cab-vista{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cab-vista h1{font-size:26px}
+.cab-vista p{color:var(--muted);font-size:15px;margin-top:4px;max-width:46em}
+.cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cab h2{font-size:16px;display:flex;align-items:center;gap:9px}
+.cab h2 .ic{width:18px;height:18px;color:var(--muted)}
 .ico{width:40px;height:40px;border-radius:11px;background:var(--surface-2);display:grid;place-items:center;color:var(--text);flex:none}
 .ico.on{background:var(--accent);color:#fff}
-.conexion{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;justify-content:space-between}
-.conexion b{display:block;font-size:17px}
-.conexion p{margin:2px 0 0;color:var(--muted);font-size:14.5px;max-width:46em}
-.conexion .acc{display:flex;gap:10px;flex-wrap:wrap}
-.error{color:var(--bad);font-size:14.5px;margin:10px 0 0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.selector-aula{display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap;padding:14px 18px}
+.selector-aula .campo{flex:1 1 220px;max-width:360px}
+
+/* Inicio */
 .vivo{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
-.temp .v{font-family:var(--font-num);font-size:112px;font-weight:300;line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;margin-top:10px}
+.temp .v{font-family:var(--font-num);font-size:104px;font-weight:300;line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;margin-top:10px}
 .temp .v small,.mini .v small{font-size:.38em;color:var(--muted);font-weight:500;letter-spacing:0}
-.cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.cab h2{font-size:16px;display:flex;align-items:center;gap:9px;margin:0}
-.cab h2 .ic{width:18px;height:18px;color:var(--muted)}
-.escala{position:relative;height:8px;border-radius:99px;margin:34px 0 8px;background:linear-gradient(90deg,var(--surface-2),var(--accent))}
-.escala .m{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text);opacity:.4}
+.escala{position:relative;height:8px;border-radius:99px;margin:34px 0 8px;background:linear-gradient(90deg,var(--surface-2),var(--c-vent) 55%,var(--c-aire))}
+.escala .m{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text);opacity:.45}
 .escala .m span{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
 .aguja{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .6s}
 .esc-txt{display:flex;justify-content:space-between;font-size:12.5px;color:var(--faint)}
-.nota{color:var(--muted);margin:12px 0 0;font-size:15px}
+.temp .nota{margin-top:12px;font-size:15px}
 .lado{display:grid;gap:16px}
 .mini{display:flex;align-items:center;gap:16px}
 .mini .k{color:var(--muted);font-size:14px;font-weight:600}
-.mini .v{font-family:var(--font-num);font-size:44px;font-weight:500;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.mini .v{font-family:var(--font-num);font-size:42px;font-weight:500;line-height:1.05;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .mini .n{color:var(--muted);font-size:13.5px}
-.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:2px;gap:2px}
-.seg button{border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:500;padding:6px 14px;border-radius:8px;cursor:pointer}
-.seg button.activo{background:var(--surface);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12)}
-.leyenda{display:flex;gap:18px;font-size:13.5px;color:var(--muted);margin:12px 0;flex-wrap:wrap}
-.leyenda i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:3px}
+.equipo{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border)}
+.equipo:first-of-type{border-top:0}
+.equipo .ico{width:36px;height:36px;border-radius:10px}
+.equipo .ico.on.aire{background:var(--c-aire)} .equipo .ico.on.vent{background:var(--c-vent)} .equipo .ico.on.luces{background:var(--c-luces)}
+.equipo b{display:block;font-size:15.5px}
+.equipo small{color:var(--muted);font-size:13px}
+.equipo .estado{margin-left:auto}
+.hoy{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14.5px}
+.hoy span{color:var(--muted)}
+.ev{list-style:none;margin:0;padding:0}
+.ev li{display:flex;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border);font-size:15px}
+.ev li:first-child{border-top:0}
+.ev .h{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:14px;white-space:nowrap}
+.ev .ico{width:30px;height:30px;border-radius:9px}
+.ev .ico .ic{width:16px;height:16px}
+.leyenda{display:flex;gap:16px;font-size:13.5px;color:var(--muted);margin:12px 0;flex-wrap:wrap}
+.leyenda i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .chart{position:relative;overflow-x:auto}
 .chart svg{display:block;width:100%;height:auto}
-.vacio{color:var(--muted);text-align:center;padding:32px 10px;margin:0}
 .g-grid{stroke:var(--border)} .g-eje{fill:var(--faint);font-size:11px;font-family:var(--font)}
 .g-t{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linejoin:round}
 .g-h{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:4 4}
 .g-area{fill:var(--accent);fill-opacity:.08}
-.g-pres{fill:var(--accent);fill-opacity:.18}
+.g-pres{fill:var(--accent);fill-opacity:.14}
 .g-u{stroke:var(--text);stroke-opacity:.35;stroke-dasharray:3 4}
 .g-ut{fill:var(--muted);font-size:11px;font-weight:600;font-family:var(--font)}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.ev{list-style:none;margin:0;padding:0}
-.ev li{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
-.ev li:first-child{border-top:0}
-.ev .h{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);font-size:14px}
-.ev .ico{width:32px;height:32px;border-radius:9px}
-.ev .ico .ic{width:16px;height:16px}
-.fila{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);font-size:15px}
-.fila:first-child{border-top:0}
-.fila span{color:var(--muted)}
-.fila b{text-align:right;font-variant-numeric:tabular-nums}
-.consola{font:12.5px/1.55 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;height:240px;overflow:auto;white-space:pre-wrap;margin:10px 0 0;color:var(--text)}
-footer{color:var(--muted);font-size:13.5px;text-align:center}
-.login{min-height:100vh;display:grid;place-items:center;padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.login .card{width:100%;max-width:400px;padding:30px 28px}
-.login h1{font-size:24px;margin:18px 0 4px}
-.login p{margin:0;color:var(--muted);font-size:15px}
-.login form{display:flex;flex-direction:column;gap:14px;margin-top:22px}
-.campo{display:flex;flex-direction:column;gap:6px}
-.campo label{font-size:14px;font-weight:600}
-.campo input{height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:16px var(--font)}
-.campo input:focus{outline:3px solid var(--accent-bg);border-color:var(--accent)}
-.login .boton{width:100%;height:46px;margin-top:4px}
-.btn-salir{border:1px solid var(--edge);background:var(--surface);color:var(--text);height:40px;padding:0 14px;border-radius:99px;font:600 14px var(--font);cursor:pointer;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
-.selector{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
-.selector label,.campo-chico label{font-size:13.5px;font-weight:600;color:var(--muted)}
-select,.campo-chico input{height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:15px var(--font)}
-.guardado{font-size:14px;color:var(--muted);margin:0}
-.guardado.mal{color:var(--bad)}
-.consulta-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:14px 0 4px}
-.campo-chico{display:flex;flex-direction:column;gap:6px}
-.desc{color:var(--muted);font-size:14.5px;margin:8px 0 0}
+
+/* Aulas */
+.grid-aulas{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.aula{display:flex;flex-direction:column;gap:12px}
+.aula-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 10px;flex-wrap:wrap}
+.aula-cab h3{font-size:18px;flex:1 1 150px;min-width:0;overflow-wrap:break-word}
+.viejo{opacity:.6}
+.aula-datos{display:flex;gap:16px;flex-wrap:wrap;font-size:15px;font-variant-numeric:tabular-nums}
+.aula-datos span{display:inline-flex;align-items:center;gap:6px}
+.aula-datos .ic{width:17px;height:17px;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip.eq-on.aire{background:var(--c-aire);color:#fff} .chip.eq-on.vent{background:var(--c-vent);color:#fff} .chip.eq-on.luces{background:var(--c-luces);color:#fff}
+.aula-consumo{font-size:14.5px;color:var(--muted)} .aula-consumo b{color:var(--text)}
+.aula-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid var(--border)}
+.form-linea{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.form-linea .campo{flex:1 1 240px}
+.pasos{margin:12px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px;color:var(--muted)}
+.pasos b{color:var(--text)}
+
+/* Consumos */
+.filtros{display:flex;gap:12px 16px;align-items:center;flex-wrap:wrap;padding:14px 18px}
+.filtros .campo{flex:0 1 260px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.kpi .k{color:var(--muted);font-size:13.5px;font-weight:600}
+.kpi .v{font-family:var(--font-num);font-size:30px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2;margin-top:4px}
+.kpi .n{color:var(--muted);font-size:13px;margin-top:2px}
+.barra-eq{margin-top:14px}
+.barra-eq .fila{display:flex;justify-content:space-between;gap:10px;font-size:14.5px;margin-bottom:6px}
+.barra-eq .fila span{color:var(--muted);font-variant-numeric:tabular-nums}
+.pista{height:10px;border-radius:99px;background:var(--surface-2);overflow:hidden;display:flex}
+.pista i{display:block;height:100%}
 .tabla-wrap{overflow-x:auto;margin-top:10px}
 .tabla{width:100%;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
 .tabla th{text-align:left;font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
 .tabla td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
-.resumen{font-size:13.5px;color:var(--muted);margin:8px 0 0}
+.tabla .num{text-align:right}
+details.como summary{cursor:pointer;font-weight:600;color:var(--accent)}
+details.como .cuerpo{margin-top:10px;color:var(--muted);font-size:14.5px;display:flex;flex-direction:column;gap:8px}
+details.como b{color:var(--text)}
+
+/* Consultas */
+.consulta-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:14px 0 4px}
+.consulta-form .campo{flex:1 1 280px;max-width:420px}
 details.sql{margin-top:12px}
 details.sql summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14px}
-details.sql pre{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;overflow:auto;margin:8px 0 0;white-space:pre;color:var(--text)}
-.aviso-bd{padding:12px 14px;border-radius:12px;background:var(--surface-2);color:var(--muted);font-size:14.5px;margin:12px 0 0}
-:focus-visible{outline:3px solid var(--accent-bg);outline-offset:2px}
-@media (max-width:820px){.vivo,.g2{grid-template-columns:1fr}.lado{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:88px}}
+pre.codigo{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;overflow:auto;margin:8px 0 0;white-space:pre;color:var(--text)}
+
+/* Formularios de perfil y configuración */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px 16px;margin-top:14px}
+.unidad{position:relative}
+.unidad input{padding-right:46px}
+.unidad span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+.rangos{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px 12px;align-items:center;margin-top:12px}
+.rangos .rt{font-size:14px;color:var(--muted)}
+.acciones{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.resumen-reglas{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--surface-2);font-size:14.5px}
+
+/* Diálogo */
+dialog{border:1px solid var(--edge);border-radius:20px;padding:0;background:var(--surface-solida);color:var(--text);box-shadow:var(--sombra);width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog .dl{padding:22px 22px 18px;display:flex;flex-direction:column;gap:12px}
+dialog h2{font-size:19px}
+dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
+.cred{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center;font-size:15px}
+.cred span{color:var(--muted)}
+.cred code{font:600 15px var(--mono);overflow-wrap:anywhere}
+
+@media (max-width:860px){.vivo,.g2{grid-template-columns:1fr}.lado{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
+@media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:84px}.kpis{grid-template-columns:1fr 1fr}.kpi .v{font-size:24px}.card{padding:18px}.rangos{grid-template-columns:1fr 1fr}.rangos .rt{grid-column:1/-1}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-.sub{font-size:15px;font-weight:600;margin:4px 0 8px}
-.sub span{color:var(--muted);font-weight:500}
-.vivo-bd .vacio{padding:18px 10px}
 </style>
 </head>
 <body>
@@ -146,609 +237,1063 @@ details.sql pre{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-r
   <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/></g></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 15l4-4 3 3 5-6"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
-  <symbol id="i-cpu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></g></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
-  <symbol id="i-usb" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v15"/><path d="m9 5 3-3 3 3"/><path d="M12 13 7 10V7"/><path d="m12 15 5-3V9"/><circle cx="12" cy="19.5" r="2.5"/><rect x="5.5" y="5" width="3" height="2"/><circle cx="17" cy="8" r="1.2"/></g></symbol>
-  <symbol id="i-term" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m5 8 4 4-4 4M12 16h7"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-aulas" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></g></symbol>
+  <symbol id="i-rayo" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-tabla" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9.5h18M3 15h18M9 9.5V20"/></g></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></g></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></g></symbol>
+  <symbol id="i-fan" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-7 4-7 2 0 3 2 2 4-1 1.6-3.5 2.5-6 3zM14 12c4 0 7 1 7 4 0 2-2 3-4 2-1.6-1-2.5-3.5-3-6zM12 14c0 4-1 7-4 7-2 0-3-2-2-4 1-1.6 3.5-2.5 6-3zM10 12c-4 0-7-1-7-4 0-2 2-3 4-2 1.6 1 2.5 3.5 3 6z"/></g></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2v20M4.9 6 19 18M19.1 6 5 18M9 4l3 2 3-2M9 20l3-2 3 2M3 10l3.5 1L5 14M21 10l-3.5 1 1.5 3"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-salir" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></symbol>
 </svg>
 
-<main class="login" id="pantallaLogin">
+<!-- ==================== INGRESO ==================== -->
+<main class="login" id="pantallaIngreso" hidden>
   <div class="card">
     <span class="logo"><svg class="ic"><use href="#i-thermo"/></svg></span>
-    <h1>Monitor del Aula</h1>
-    <p id="lTxt">Ingresá con tu nombre y contraseña.</p>
-    <form id="formLogin" novalidate>
-      <div class="campo"><label for="lUsuario" id="lUsuarioLbl">Usuario</label><input id="lUsuario" autocomplete="username" required></div>
-      <div class="campo"><label for="lClave">Contraseña</label><input id="lClave" type="password" autocomplete="current-password" required></div>
-      <p class="error" id="lError" role="alert" hidden></p>
-      <button class="boton" type="submit">Ingresar</button>
+    <h1>ClimControl</h1>
+    <p class="sub">Climatización automática de aulas: temperatura, presencia, equipos y consumo de cada aula en tiempo real.</p>
+    <div class="seg" id="modoIngreso" role="tablist" aria-label="Ingresar o crear una cuenta">
+      <button type="button" class="activo" data-modo="ingresar" role="tab" aria-selected="true">Ingresar</button>
+      <button type="button" data-modo="crear" role="tab" aria-selected="false">Crear cuenta</button>
+    </div>
+    <p class="aviso" id="sinSupabase" hidden style="margin-top:16px">Esta página todavía no está conectada a la base de datos (Supabase). Mientras tanto podés ver la demo con datos de ejemplo.</p>
+    <form id="formIngreso" novalidate>
+      <div class="campo" id="campoNombre" hidden><label for="iNombre">Tu nombre</label><input id="iNombre" autocomplete="name" maxlength="60"></div>
+      <div class="campo"><label for="iMail">Mail</label><input id="iMail" type="email" autocomplete="email" inputmode="email" required></div>
+      <div class="campo"><label for="iClave">Contraseña</label><input id="iClave" type="password" autocomplete="current-password" required><span class="ayuda" id="ayudaClave" hidden>Al menos 8 caracteres.</span></div>
+      <p class="error" id="iError" role="alert" hidden></p>
+      <p class="aviso ok" id="iOk" role="status" hidden></p>
+      <button class="boton" type="submit" id="bIngresar">Ingresar</button>
     </form>
+    <div class="pie">
+      <button class="enlace" type="button" id="bDemo">Ver la demo con datos de ejemplo</button>
+      <span class="nota">Para usar tus aulas necesitás una cuenta y una ESP32 con WiFi.</span>
+    </div>
   </div>
 </main>
 
-<div class="wrap" id="app" hidden>
-  <header>
-    <span class="logo"><svg class="ic"><use href="#i-thermo"/></svg></span>
-    <div class="t"><b>Monitor del Aula</b><small>UTN · Facultad Regional San Francisco</small></div>
+<!-- ==================== APP ==================== -->
+<div id="app" hidden>
+  <header class="barra">
+    <button class="btn-redondo" id="bMenu" aria-label="Abrir el menú" aria-expanded="false" aria-controls="cajon"><svg class="ic"><use href="#i-menu"/></svg></button>
+    <div class="titulo"><b id="tituloVista">Inicio</b><small>ClimControl · UTN FRSF</small></div>
     <div class="der">
-      <span class="chip" id="estadoChip"><span class="dot"></span><span id="estadoTxt">Sin conectar</span></span>
-      <button class="btn" id="bTema" aria-label="Cambiar entre modo claro y oscuro"><svg class="ic"><use href="#i-moon"/></svg></button>
-      <button class="btn-salir" id="bSalir">Salir</button>
+      <span class="chip ac" id="chipDemo" hidden>Demo</span>
+      <button class="btn-redondo" id="bTema" aria-label="Cambiar entre modo claro y oscuro"><svg class="ic"><use href="#i-moon"/></svg></button>
     </div>
   </header>
+  <div class="velo" id="velo"></div>
+  <nav class="cajon" id="cajon" aria-label="Menú principal">
+    <div class="quien"><span class="avatar" id="avatar">?</span><div><b id="menuNombre">--</b><small id="menuMail">--</small></div></div>
+    <ul class="menu">
+      <li><a href="#inicio" data-vista="inicio"><svg class="ic"><use href="#i-home"/></svg>Inicio</a></li>
+      <li><a href="#aulas" data-vista="aulas"><svg class="ic"><use href="#i-aulas"/></svg>Aulas</a></li>
+      <li><a href="#consumos" data-vista="consumos"><svg class="ic"><use href="#i-rayo"/></svg>Consumos</a></li>
+      <li><a href="#consultas" data-vista="consultas"><svg class="ic"><use href="#i-tabla"/></svg>Consultas</a></li>
+      <li class="sep" role="separator"></li>
+      <li><a href="#perfil" data-vista="perfil"><svg class="ic"><use href="#i-user"/></svg>Perfil</a></li>
+      <li><a href="#configuracion" data-vista="configuracion"><svg class="ic"><use href="#i-gear"/></svg>Configuración</a></li>
+    </ul>
+    <div class="salir"><button class="boton" id="bSalirMenu"><svg class="ic"><use href="#i-salir"/></svg>Cerrar sesión</button></div>
+  </nav>
 
-  <section class="card">
-    <div class="conexion">
-      <div style="display:flex;gap:14px;align-items:center">
-        <span class="ico" id="icoUsb"><svg class="ic"><use href="#i-usb"/></svg></span>
-        <div><b id="conTit">Conectá el ESP32 por USB</b><p id="conTxt">Lee los mismos datos que muestra el Serial Monitor de Arduino IDE. Antes, cerrá el Serial Monitor: el puerto no se puede usar desde dos lugares a la vez.</p></div>
+  <main class="wrap" id="principal">
+    <!-- ---------- INICIO ---------- -->
+    <section class="vista" data-vista="inicio" hidden>
+      <div class="card selector-aula" id="inicioSelector">
+        <div class="campo"><label for="selAula">Aula</label><select id="selAula"></select></div>
+        <span class="chip" id="conexChip"><span class="dot"></span><span id="conexTxt">--</span></span>
       </div>
-      <div class="acc">
-        <button class="boton" id="bConectar">Conectar al ESP32</button>
-        <button class="boton sec" id="bDesconectar" hidden>Desconectar</button>
-        <button class="boton sec" id="bDemo">Ver datos de ejemplo</button>
+      <div class="card" id="inicioVacio" hidden>
+        <h2 style="font-size:20px">Todavía no tenés aulas</h2>
+        <p class="nota" style="margin-top:6px">Agregá un aula, cargá en la ESP32 el código y la clave que te damos, y enchufala con WiFi. En unos segundos vas a ver acá la temperatura y los equipos.</p>
+        <div class="acciones"><a class="boton" href="#aulas">Agregar mi primera aula</a></div>
       </div>
-    </div>
-    <p class="error" id="conError" role="alert" hidden></p>
-    <div class="selector" id="bdBox" hidden>
-      <label for="selAula">Aula</label>
-      <select id="selAula"></select>
-      <p class="guardado" id="guardadoTxt">Los datos se guardan en la base de Access mientras el ESP32 está conectado.</p>
-    </div>
-  </section>
-
-  <section class="vivo" aria-live="polite">
-    <div class="card temp">
-      <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Temperatura</h2><span class="chip" id="zona">--</span></div>
-      <div class="v" id="vTemp">--</div>
-      <div class="escala">
-        <div class="m" style="left:44.4%"><span>24 °C</span></div>
-        <div class="m" style="left:61.1%"><span>27 °C</span></div>
-        <div class="aguja" id="aguja" hidden></div>
+      <div id="inicioDatos" class="vista">
+        <p class="aviso" id="inicioEsperando" hidden>Esta aula todavía no recibió datos. Cargá el código y la clave en la ESP32 (en <b>Aulas → Dispositivo</b>) y conectala al WiFi.</p>
+        <section class="vivo" aria-live="polite">
+          <div class="card temp">
+            <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Temperatura</h2><span class="chip" id="zona">--</span></div>
+            <div class="v" id="vTemp">--</div>
+            <div class="escala"><div class="m" id="marcaVent"><span>24 °C</span></div><div class="m" id="marcaAire"><span>27 °C</span></div><div class="aguja" id="aguja" hidden></div></div>
+            <div class="esc-txt"><span>16 °C</span><span>34 °C</span></div>
+            <p class="nota" id="zonaTxt">--</p>
+          </div>
+          <div class="lado">
+            <div class="card mini"><span class="ico"><svg class="ic"><use href="#i-drop"/></svg></span><div><div class="k">Humedad</div><div class="v" id="vHum">--</div><div class="n" id="nHum">--</div></div></div>
+            <div class="card mini"><span class="ico" id="icoPres"><svg class="ic"><use href="#i-users"/></svg></span><div><div class="k">Presencia</div><div class="v" id="vPres" style="font-size:30px">--</div><div class="n" id="nPres">--</div></div></div>
+          </div>
+        </section>
+        <section class="g2">
+          <div class="card">
+            <div class="cab" style="margin-bottom:6px"><h2><svg class="ic"><use href="#i-rayo"/></svg>Equipos</h2><span class="nota" id="ultimaLectura">--</span></div>
+            <div class="equipo"><span class="ico vent" id="icoVent"><svg class="ic"><use href="#i-fan"/></svg></span><div><b>Ventilador</b><small id="reglaVent">--</small></div><span class="chip estado" id="eVent">--</span></div>
+            <div class="equipo"><span class="ico aire" id="icoAire"><svg class="ic"><use href="#i-snow"/></svg></span><div><b>Aire acondicionado</b><small id="reglaAire">--</small></div><span class="chip estado" id="eAire">--</span></div>
+            <div class="equipo"><span class="ico luces" id="icoLuces"><svg class="ic"><use href="#i-bulb"/></svg></span><div><b>Luces</b><small>Con gente y poca luz natural</small></div><span class="chip estado" id="eLuces">--</span></div>
+            <div class="hoy"><span>Consumo de hoy (estimado)</span><b id="consumoHoy">--</b></div>
+          </div>
+          <div class="card">
+            <div class="cab" style="margin-bottom:6px"><h2><svg class="ic"><use href="#i-list"/></svg>Últimos cambios</h2></div>
+            <ul class="ev" id="listaEventos"><li>Todavía no hay cambios.</li></ul>
+          </div>
+        </section>
+        <section class="card">
+          <div class="cab"><h2><svg class="ic"><use href="#i-chart"/></svg>Temperatura y humedad</h2>
+            <div class="seg" id="rangoGrafico"><button data-h="1" class="activo">1 hora</button><button data-h="6">6 horas</button><button data-h="24">24 horas</button></div>
+          </div>
+          <div class="leyenda"><span><i style="background:var(--accent)"></i>Temperatura</span><span><i style="background:var(--muted);height:3px"></i>Humedad</span><span><i style="background:var(--accent);opacity:.25"></i>Hay gente</span></div>
+          <div class="chart" id="grafico"><p class="vacio">Cargando…</p></div>
+        </section>
       </div>
-      <div class="esc-txt"><span>16 °C</span><span>34 °C</span></div>
-      <p class="nota" id="zonaTxt">Conectá el ESP32 para ver la temperatura del aula.</p>
-    </div>
-    <div class="lado">
-      <div class="card mini"><span class="ico"><svg class="ic"><use href="#i-drop"/></svg></span><div><div class="k">Humedad</div><div class="v" id="vHum">--</div><div class="n" id="nHum">--</div></div></div>
-      <div class="card mini"><span class="ico" id="icoPres"><svg class="ic"><use href="#i-users"/></svg></span><div><div class="k">Presencia</div><div class="v" id="vPres" style="font-size:32px">--</div><div class="n" id="nPres">--</div></div></div>
-    </div>
-  </section>
+    </section>
 
-  <section class="card">
-    <div class="cab"><h2><svg class="ic"><use href="#i-chart"/></svg>Últimas lecturas</h2>
-      <div class="seg" id="rango"><button data-m="10" class="activo">10 min</button><button data-m="60">1 hora</button><button data-m="360">6 horas</button></div>
-    </div>
-    <div class="leyenda"><span><i style="background:var(--accent)"></i>Temperatura</span><span><i style="background:var(--muted)"></i>Humedad</span><span><i style="background:var(--accent);opacity:.25;height:10px"></i>Hay gente</span></div>
-    <div class="chart" id="chart"><p class="vacio">El gráfico aparece con las primeras lecturas.</p></div>
-  </section>
-
-  <section class="g2">
-    <div class="card">
-      <div class="cab" style="margin-bottom:8px"><h2><svg class="ic"><use href="#i-cpu"/></svg>Equipos</h2><span class="chip" id="modoChip">--</span></div>
-      <div id="equipos">
-        <div class="fila"><span>Aire acondicionado</span><b id="eAire">--</b></div>
-        <div class="fila"><span>Ventilador</span><b id="eVent">--</b></div>
-        <div class="fila"><span>Luces</span><b id="eLuces">--</b></div>
-        <div class="fila"><span>Cortina</span><b id="eCortina">--</b></div>
-        <div class="fila"><span>Nivel de luz</span><b id="eLuz">--</b></div>
+    <!-- ---------- AULAS ---------- -->
+    <section class="vista" data-vista="aulas" hidden>
+      <div class="cab-vista">
+        <div><h1>Aulas</h1><p>Cada aula tiene su ESP32. Desde acá ves cómo está cada una y lo que gastó hoy.</p></div>
+        <button class="boton" id="bNuevaAula"><svg class="ic"><use href="#i-plus"/></svg>Agregar aula</button>
       </div>
-    </div>
-    <div class="card">
-      <div class="cab" style="margin-bottom:8px"><h2><svg class="ic"><use href="#i-list"/></svg>Movimiento detectado</h2><span style="font-size:13.5px;color:var(--muted)" id="evRes">--</span></div>
-      <ul class="ev" id="eventos"><li>Todavía no hay cambios.</li></ul>
-    </div>
-  </section>
+      <form class="card" id="formAula" novalidate hidden>
+        <div class="form-linea">
+          <div class="campo"><label for="nuevaAula">Nombre del aula</label><input id="nuevaAula" maxlength="60" placeholder="Por ejemplo: Aula 101"></div>
+          <button class="boton" type="submit">Crear aula</button>
+          <button class="boton sec" type="button" id="bCancelarAula">Cancelar</button>
+        </div>
+        <p class="error" id="aulaError" role="alert" hidden style="margin-top:10px"></p>
+        <p class="nota" style="margin-top:10px">Al crearla te damos un código y una clave para cargar en la ESP32 de esa aula.</p>
+      </form>
+      <div class="grid-aulas" id="listaAulas"></div>
+    </section>
 
-  <section class="card" id="seccionVivo" hidden>
-    <div class="cab"><h2><svg class="ic"><use href="#i-list"/></svg>La base de datos en vivo</h2><span style="font-size:13.5px;color:var(--muted)" id="vivoRes">--</span></div>
-    <div class="g2 vivo-bd">
-      <div><h3 class="sub">Lecturas <span id="vivoNL"></span></h3><div class="tabla-wrap" id="vivoLecturas"></div></div>
-      <div><h3 class="sub">Eventos <span id="vivoNE"></span></h3><div class="tabla-wrap" id="vivoEventos"></div></div>
-    </div>
-  </section>
+    <!-- ---------- CONSUMOS ---------- -->
+    <section class="vista" data-vista="consumos" hidden>
+      <div class="cab-vista"><div><h1>Consumos</h1><p>Estimación según cuánto tiempo estuvo prendido cada equipo. Los precios y las potencias se cambian en Configuración.</p></div></div>
+      <div class="card filtros">
+        <div class="seg" id="periodo"><button data-p="hoy" class="activo">Hoy</button><button data-p="7">7 días</button><button data-p="mes">Este mes</button><button data-p="30">30 días</button></div>
+        <div class="campo"><label for="filtroAula" class="nota" style="font-weight:600">Aula</label><select id="filtroAula"></select></div>
+      </div>
+      <div class="kpis">
+        <div class="card kpi"><div class="k">Energía</div><div class="v" id="kKwh">--</div><div class="n" id="kKwhN">--</div></div>
+        <div class="card kpi"><div class="k">Costo estimado</div><div class="v" id="kCosto">--</div><div class="n" id="kCostoN">--</div></div>
+        <div class="card kpi"><div class="k" id="kProyT">Proyección del mes</div><div class="v" id="kProy">--</div><div class="n" id="kProyN">--</div></div>
+        <div class="card kpi"><div class="k">El que más gasta</div><div class="v" id="kMax" style="font-size:24px">--</div><div class="n" id="kMaxN">--</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="cab"><h2><svg class="ic"><use href="#i-rayo"/></svg>Por equipo</h2></div>
+          <div id="porEquipo"></div>
+        </div>
+        <div class="card">
+          <div class="cab"><h2><svg class="ic"><use href="#i-chart"/></svg>Por día</h2></div>
+          <div class="leyenda"><span><i style="background:var(--c-aire)"></i>Aire</span><span><i style="background:var(--c-vent)"></i>Ventilador</span><span><i style="background:var(--c-luces)"></i>Luces</span></div>
+          <div class="chart" id="graficoDias"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cab"><h2><svg class="ic"><use href="#i-aulas"/></svg>Por aula</h2><span class="nota" id="porAulaRes"></span></div>
+        <div class="tabla-wrap" id="porAula"></div>
+      </div>
+      <details class="card como">
+        <summary>Cómo se calcula</summary>
+        <div class="cuerpo" id="comoSeCalcula"></div>
+      </details>
+    </section>
 
-  <section class="card" id="seccionConsultas">
-    <div class="cab"><h2><svg class="ic"><use href="#i-list"/></svg>Consultas a la base de datos</h2><span class="chip" id="bdChip"><span class="dot"></span><span id="bdTxt">Sin conectar</span></span></div>
-    <div class="consulta-form">
-      <div class="campo-chico"><label for="cConsulta">Consulta</label><select id="cConsulta"></select></div>
-      <button class="boton" id="bConsultar">Ejecutar consulta</button>
-    </div>
-    <p class="desc" id="cDesc"></p>
-    <p class="aviso-bd" id="cSinBase" hidden>La página no está conectada a la base de Access. En la computadora que tiene la base, abrí <b>Conectar base de datos.bat</b> (está en la carpeta <b>ClimControl</b>, al lado de la base de datos) y volvé a cargar esta página. Si el navegador pregunta si la página puede acceder a la red local, tocá <b>Permitir</b>.</p>
-    <p class="error" id="cError" role="alert" hidden></p>
-    <div class="tabla-wrap" id="cResultado"></div>
-    <p class="resumen" id="cResumen"></p>
-    <details class="sql"><summary>Ver el SQL de esta consulta</summary><pre id="cSql"></pre></details>
-  </section>
+    <!-- ---------- CONSULTAS ---------- -->
+    <section class="vista" data-vista="consultas" hidden>
+      <div class="cab-vista"><div><h1>Consultas</h1><p>Las consultas guardadas en la base de datos (Supabase). Cada cuenta ve solo los datos de sus aulas.</p></div></div>
+      <div class="card">
+        <div class="consulta-form">
+          <div class="campo"><label for="selConsulta">Consulta</label><select id="selConsulta"></select></div>
+          <button class="boton" id="bConsultar">Ejecutar consulta</button>
+        </div>
+        <p class="nota" id="consultaDesc"></p>
+        <p class="error" id="consultaError" role="alert" hidden></p>
+        <div class="tabla-wrap" id="consultaResultado"></div>
+        <p class="nota" id="consultaResumen" style="margin-top:8px"></p>
+        <details class="sql"><summary>Ver el SQL de esta consulta</summary><pre class="codigo" id="consultaSql"></pre></details>
+      </div>
+    </section>
 
-  <section class="card" id="seccionAulas" hidden>
-    <div class="cab"><h2><svg class="ic"><use href="#i-cpu"/></svg>Aulas</h2><span style="font-size:13.5px;color:var(--muted)">Solo superadmin</span></div>
-    <div class="tabla-wrap" id="aulasLista"></div>
-    <form class="consulta-form" id="formAula" novalidate>
-      <div class="campo-chico"><label for="aNombre">Nombre</label><input id="aNombre" maxlength="60"></div>
-      <div class="campo-chico"><label for="aEncargado">Encargado</label><select id="aEncargado"></select></div>
-      <button class="boton" type="submit">Agregar aula</button>
-    </form>
-    <p class="error" id="aError" role="alert" hidden></p>
-  </section>
+    <!-- ---------- PERFIL ---------- -->
+    <section class="vista" data-vista="perfil" hidden>
+      <div class="cab-vista"><div><h1>Perfil</h1><p>Tus datos y tu contraseña.</p></div></div>
+      <form class="card" id="formPerfil" novalidate>
+        <div class="cab"><h2><svg class="ic"><use href="#i-user"/></svg>Tus datos</h2></div>
+        <div class="form-grid">
+          <div class="campo"><label for="pNombre">Nombre</label><input id="pNombre" maxlength="60" autocomplete="name"></div>
+          <div class="campo"><label for="pMail">Mail</label><input id="pMail" readonly></div>
+          <div class="campo"><label for="pAulas">Aulas</label><input id="pAulas" readonly></div>
+        </div>
+        <div class="acciones"><button class="boton" type="submit">Guardar</button><span id="perfilEstado" role="status"></span></div>
+      </form>
+      <form class="card" id="formClave" novalidate>
+        <div class="cab"><h2><svg class="ic"><use href="#i-gear"/></svg>Cambiar la contraseña</h2></div>
+        <div class="form-grid">
+          <div class="campo"><label for="pClave">Contraseña nueva</label><input id="pClave" type="password" autocomplete="new-password"><span class="ayuda">Al menos 8 caracteres.</span></div>
+          <div class="campo"><label for="pClave2">Repetila</label><input id="pClave2" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="acciones"><button class="boton" type="submit">Cambiar contraseña</button><span id="claveEstado" role="status"></span></div>
+      </form>
+      <div class="card">
+        <div class="cab"><h2><svg class="ic"><use href="#i-salir"/></svg>Sesión</h2></div>
+        <p class="nota" style="margin-top:8px">Cuenta creada el <span id="pCreada">--</span>. Para borrar la cuenta y todos sus datos, pedíselo a quien administra ClimControl.</p>
+        <div class="acciones"><button class="boton sec" id="bSalir">Cerrar sesión</button></div>
+      </div>
+    </section>
 
-  <section class="card">
-    <div class="cab"><h2><svg class="ic"><use href="#i-term"/></svg>Monitor serie</h2><span style="font-size:13.5px;color:var(--muted)">115200 baudios · lo mismo que muestra Arduino IDE</span></div>
-    <pre class="consola" id="consola">Esperando datos…</pre>
-  </section>
+    <!-- ---------- CONFIGURACIÓN ---------- -->
+    <section class="vista" data-vista="configuracion" hidden>
+      <div class="cab-vista"><div><h1>Configuración</h1><p>Vale para todas tus aulas. La ESP32 toma los cambios en menos de 10 segundos.</p></div></div>
+      <form class="card" id="formConfig" novalidate>
+        <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Cuándo se prende cada equipo</h2></div>
+        <div class="form-grid">
+          <div class="campo"><label for="cVent">Ventilador desde</label><div class="unidad"><input id="cVent" type="number" step="0.5" min="15" max="40" inputmode="decimal"><span>°C</span></div></div>
+          <div class="campo"><label for="cAire">Aire acondicionado desde</label><div class="unidad"><input id="cAire" type="number" step="0.5" min="15" max="40" inputmode="decimal"><span>°C</span></div></div>
+          <div class="campo"><label for="cMin">Aula vacía después de</label><div class="unidad"><input id="cMin" type="number" step="1" min="0" max="60" inputmode="numeric"><span>min</span></div><span class="ayuda">Sin movimiento en el PIR. 0 = al instante (para demostraciones).</span></div>
+        </div>
+        <p class="resumen-reglas" id="resumenReglas">--</p>
+        <p class="nota" style="margin-top:10px">Si la ESP32 se queda sin internet, sigue con los últimos valores que recibió. Si nunca recibió ninguno, usa los de fábrica: 24 °C y 27 °C.</p>
 
-  <footer>Monitor del Aula · ESP32 + DHT11 (pin 19) + PIR (pin 18) · Investigación Tecnológica y Comunicaciones de Datos · UTN FRSF</footer>
+        <div class="cab" style="margin-top:22px"><h2><svg class="ic"><use href="#i-rayo"/></svg>Consumo estimado</h2></div>
+        <div class="form-grid">
+          <div class="campo"><label for="cPrecio">Precio del kWh</label><div class="unidad"><input id="cPrecio" type="number" step="1" min="0" inputmode="decimal"><span>$</span></div><span class="ayuda">Referencia para Córdoba (EPEC). Con tu factura: total en pesos ÷ kWh consumidos.</span></div>
+          <div class="campo"><label for="cPotVent">Ventiladores del aula</label><div class="unidad"><input id="cPotVent" type="number" step="5" min="0" inputmode="numeric"><span>W</span></div><span class="ayuda">De fábrica: 2 ventiladores de techo de 75 W.</span></div>
+          <div class="campo"><label for="cPotLuces">Luces del aula</label><div class="unidad"><input id="cPotLuces" type="number" step="5" min="0" inputmode="numeric"><span>W</span></div><span class="ayuda">De fábrica: 10 tubos LED de 18 W.</span></div>
+        </div>
+        <p class="nota" style="margin-top:16px"><b style="color:var(--text)">Aire acondicionado:</b> gasta más cuanto más calor hace en el aula. De fábrica, un split de 4500 frigorías clase A.</p>
+        <div class="rangos">
+          <span class="rt">Menos de</span><div class="unidad"><input id="cLim1" type="number" step="0.5" min="15" max="50" aria-label="Límite del primer rango" inputmode="decimal"><span>°C</span></div><div class="unidad"><input id="cWBajo" type="number" step="50" min="0" aria-label="Potencia del aire en el primer rango" inputmode="numeric"><span>W</span></div>
+          <span class="rt" id="rtMedio">Desde 30 °C y menos de</span><div class="unidad"><input id="cLim2" type="number" step="0.5" min="15" max="50" aria-label="Límite del segundo rango" inputmode="decimal"><span>°C</span></div><div class="unidad"><input id="cWMedio" type="number" step="50" min="0" aria-label="Potencia del aire en el segundo rango" inputmode="numeric"><span>W</span></div>
+          <span class="rt" id="rtAlto">Desde ese valor en adelante</span><span></span><div class="unidad"><input id="cWAlto" type="number" step="50" min="0" aria-label="Potencia del aire en el tercer rango" inputmode="numeric"><span>W</span></div>
+        </div>
+        <p class="error" id="configError" role="alert" hidden style="margin-top:12px"></p>
+        <div class="acciones">
+          <button class="boton" type="submit">Guardar cambios</button>
+          <button class="boton sec" type="button" id="bFabrica">Volver a los valores de fábrica</button>
+          <span id="configEstado" role="status"></span>
+        </div>
+      </form>
+    </section>
+  </main>
 </div>
 
+<dialog id="dlg" aria-labelledby="dlgTitulo"><form method="dialog" class="dl" id="dlgForm"><h2 id="dlgTitulo"></h2><div id="dlgCuerpo"></div><div class="dl-acc" id="dlgAcc"></div></form></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
 <script>
 (function(){
-  const $=id=>document.getElementById(id);
-  const INTERVALO=2;                 // segundos entre lecturas, como el ESP32
-  const MAX=6*3600/INTERVALO;        // guardamos hasta 6 horas
-  let datos=[], eventos=[], minutos=10, modo='nada';
-  let estado={}, actual={};
-  const hora=ts=>new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  const fmt=n=>n.toFixed(1).replace('.',',');
-  const lindo=v=>v==null?'--':v.charAt(0)+v.slice(1).toLowerCase();
+'use strict';
+// =====================================================================
+// CONEXIÓN CON SUPABASE
+// Completar con los datos del proyecto (Supabase → Project Settings → API Keys):
+// la URL del proyecto y la clave PÚBLICA ("publishable" o "anon"). Nunca la secreta.
+// =====================================================================
+const SUPABASE_URL = 'https://jkhyakdhlcbwkrlynvxh.supabase.co';
+const SUPABASE_CLAVE = 'sb_publishable_qeKalge2NrjIaetxfz_30g_J2E73UaL';
 
-  // ---------- Lo que imprime el ESP32: "Clave: valor", un bloque cada 2 segundos ----------
-  function procesar(linea){
-    consola(linea);
-    if(/^\s*-{5,}/.test(linea)){ cerrarLectura(); return; }
-    const m=linea.match(/^\s*([^:]+):\s*(.*)$/);
-    if(!m) return;
-    const k=m[1].trim().toLowerCase(), v=m[2].trim();
-    const num=x=>{const n=parseFloat(x.replace(',','.'));return isNaN(n)?null:n;};
-    if(k==='temperatura') actual.temp=num(v);
-    else if(k==='humedad') actual.hum=num(v);
-    else if(k==='personas') actual.pres=/^s/i.test(v);
-    else if(k==='nivel de luz') actual.luz=num(v);
-    else if(k==='cortina') actual.cortina=v;
-    else if(k==='luces') actual.luces=v;
-    else if(k==='ventilador') actual.vent=v;
-    else if(k==='aire acondicionado') actual.aire=v;
-    else if(k==='modo'){ actual.modo=v; cerrarLectura(); }
-  }
-  function cerrarLectura(){
-    if(!('temp' in actual) && !('pres' in actual)){ actual={}; return; }
-    Object.assign(estado,actual); actual={};
-    agregar({t:Date.now(),temp:estado.temp,hum:estado.hum,pres:!!estado.pres});
-    guardarEnBase();
-  }
-  function agregar(p){
-    const prev=datos[datos.length-1];
-    if(prev && p.pres!==prev.pres) eventos.push({t:p.t,pres:p.pres});
-    datos.push(p); if(datos.length>MAX) datos.shift();
-    pintarTodo();
-  }
+const VALORES_DE_FABRICA = { temp_ventilador:24, temp_aire:27, minutos_sin_movimiento:5, precio_kwh:180,
+  potencia_ventilador_w:150, potencia_luces_w:180, aire_limite_1:30, aire_limite_2:33, aire_w_bajo:1100, aire_w_medio:1500, aire_w_alto:1900 };
 
-  const lineas=[];
-  function consola(txt){
-    lineas.push(txt); if(lineas.length>60) lineas.shift();
-    const c=$('consola'), alFinal=c.scrollTop+c.clientHeight>=c.scrollHeight-20;
-    c.textContent=lineas.join('\n');
-    if(alFinal) c.scrollTop=c.scrollHeight;
-  }
+// ---------- utilidades ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf1 = new Intl.NumberFormat('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1});
+const nf2 = new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const nf0 = new Intl.NumberFormat('es-AR',{maximumFractionDigits:0});
+const pesos = v => '$ ' + nf0.format(Math.round(v));
+const kwh = v => (v >= 100 ? nf0.format(v) : nf2.format(v)) + ' kWh';
+const grados = v => (Number.isInteger(+v) ? String(+v) : nf1.format(+v)) + ' °C';
+const horas = h => h < 1 ? Math.round(h * 60) + ' min' : nf1.format(h) + ' h';
+const hora = t => new Date(t).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const fecha = t => new Date(t).toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'});
+const fechaHora = t => new Date(t).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function hace(t){
+  const s = (Date.now() - new Date(t)) / 1000;
+  if (s < 60) return 'hace ' + Math.max(1, Math.round(s)) + ' s';
+  if (s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+  if (s < 86400) return 'desde las ' + hora(t);
+  return 'desde el ' + fechaHora(t);
+}
+const guardarLocal = (k, v) => { try { localStorage.setItem('climcontrol_' + k, v); } catch (e) {} };
+const leerLocal = k => { try { return localStorage.getItem('climcontrol_' + k); } catch (e) { return null; } };
+const isoDia = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 
-  // ---------- Conexión por USB (Web Serial: Chrome o Edge en la computadora) ----------
-  let puerto=null, lector=null, cierre=null;
-  function mostrarEstado(txt,clase,tit,sub){
-    $('estadoTxt').textContent=txt; $('estadoChip').className='chip'+(clase?' '+clase:'');
-    if(tit) $('conTit').textContent=tit;
-    if(sub) $('conTxt').textContent=sub;
-    $('icoUsb').className='ico'+(modo==='usb'?' on':'');
-    $('bConectar').hidden=modo==='usb'; $('bDesconectar').hidden=modo!=='usb';
-    $('bDemo').hidden=modo==='usb';
-    textoGuardado();
-  }
-  function error(txt){ const e=$('conError'); e.textContent=txt; e.hidden=!txt; }
+function mensaje(e){
+  const m = (e && (e.message || e.error_description || e.msg)) || String(e);
+  const tabla = [
+    [/Invalid login credentials/i, 'El mail o la contraseña no coinciden.'],
+    [/Email not confirmed/i, 'Todavía no confirmaste tu mail: buscá el correo (fijate también en spam) y tocá el enlace.'],
+    [/already registered|already been registered|already exists/i, 'Ya hay una cuenta con ese mail. Ingresá con tu contraseña.'],
+    [/Password should be at least|password.*(short|length)/i, 'La contraseña es muy corta.'],
+    [/same_password|should be different/i, 'La contraseña nueva tiene que ser distinta de la anterior.'],
+    [/weak_password|weak/i, 'Esa contraseña es muy fácil de adivinar. Probá con una más larga.'],
+    [/rate limit|too many/i, 'Hubo demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.'],
+    [/valid email|invalid format|Unable to validate email/i, 'Revisá el mail: no parece válido.'],
+    [/signups not allowed|Signups not allowed/i, 'Por ahora no se pueden crear cuentas nuevas.'],
+    [/NOMBRE_REPETIDO|aulas_nombre_por_usuario|duplicate key/i, 'Ya tenés un aula con ese nombre.'],
+    [/NOMBRE_INVALIDO/, 'Escribí un nombre de 1 a 60 caracteres.'],
+    [/DEMASIADAS_AULAS/, 'Llegaste al máximo de 50 aulas.'],
+    [/AULA_INEXISTENTE/, 'Esa aula ya no existe.'],
+    [/aire_despues_del_ventilador/, 'El aire tiene que arrancar a una temperatura más alta que el ventilador.'],
+    [/rangos_en_orden/, 'Los rangos del aire tienen que ir de menor a mayor.'],
+    [/check constraint/i, 'Algún valor está fuera de rango.'],
+    [/JWT expired|refresh token|not authenticated|session/i, 'La sesión venció. Volvé a ingresar.'],
+    [/Failed to fetch|NetworkError|Load failed|fetch/i, 'No hay conexión con el servidor. Revisá internet y probá de nuevo.'],
+    [/does not exist|schema cache|Could not find/i, 'La base de datos todavía no está preparada: falta correr supabase/climcontrol.sql en Supabase.'],
+  ];
+  for (const [re, txt] of tabla) if (re.test(m)) return txt;
+  return 'Algo salió mal: ' + m;
+}
 
-  async function conectar(){
-    error('');
-    if(!('serial' in navigator)){
-      error('Este navegador no puede leer el USB. Abrí este archivo en Google Chrome o Microsoft Edge en la computadora. Las páginas publicadas en claude.ai tampoco tienen acceso al USB.');
-      return;
-    }
-    try{ puerto=await navigator.serial.requestPort(); }
-    catch(e){
-      if(e.name==='NotFoundError') return;   // cerró la ventana sin elegir
-      error('El navegador no dejó usar el USB desde esta página. Abrí el archivo monitor-usb.html en Chrome o Edge.');
-      return;
-    }
-    try{ await puerto.open({baudRate:115200}); }
-    catch(e){ error('No se pudo abrir el puerto. Cerrá el Serial Monitor de Arduino IDE (o cualquier programa que lo esté usando) y probá de nuevo.'); puerto=null; return; }
-    try{ await puerto.setSignals({dataTerminalReady:false,requestToSend:false}); }catch(e){}
-    if(modo==='demo') pararDemo();
-    datos=[]; eventos=[]; estado={}; actual={}; lineas.length=0;
-    modo='usb';
-    reiniciarGuardado();
-    consola('— Conectado. Esperando datos del ESP32… —');
-    mostrarEstado('Conectado por USB','ok','ESP32 conectado','Leyendo lo que imprime el ESP32 cada 2 segundos.');
-    pintarTodo();
-    leer();
-  }
-  async function leer(){
-    const dec=new TextDecoderStream();
-    cierre=puerto.readable.pipeTo(dec.writable).catch(()=>{});
-    lector=dec.readable.getReader();
-    let resto='';
-    try{
-      while(true){
-        const {value,done}=await lector.read();
-        if(done) break;
-        resto+=value;
-        let i;
-        while((i=resto.indexOf('\n'))>=0){ procesar(resto.slice(0,i).replace(/\r$/,'')); resto=resto.slice(i+1); }
-      }
-    }catch(e){ error('Se cortó la conexión con el ESP32. Revisá el cable USB y volvé a conectar.'); }
-    await desconectar(true);
-  }
-  async function desconectar(porError){
-    if(modo!=='usb') return;
-    modo='nada';
-    try{ if(lector){ await lector.cancel(); lector.releaseLock(); } }catch(e){}
-    try{ if(cierre) await cierre; }catch(e){}
-    try{ if(puerto) await puerto.close(); }catch(e){}
-    puerto=null; lector=null; cierre=null;
-    mostrarEstado('Sin conectar','','Conectá el ESP32 por USB',porError===true?'La conexión se cortó. Podés volver a conectarlo.':'Desconectado. Podés volver a abrir el Serial Monitor de Arduino IDE.');
-  }
-  if('serial' in navigator) navigator.serial.addEventListener('disconnect',e=>{ if(puerto && e.target===puerto){ error('Se desenchufó el ESP32.'); desconectar(true); } });
-  $('bConectar').onclick=conectar;
-  $('bDesconectar').onclick=()=>desconectar(false);
-
-  // ---------- Datos de ejemplo (para mostrar la página sin el ESP32) ----------
-  let reloj=null;
-  function simular(ts){
-    const d=new Date(ts), h=d.getHours()+d.getMinutes()/60;
-    const base=21+5.5*Math.sin((h-9)/24*2*Math.PI)+Math.sin(ts/900000)*0.8;
-    const pres=((Math.floor(ts/600000))%3)!==2;
-    const temp=base+(pres?1.4:0)+(Math.random()-.5)*.3;
-    const hum=62-(temp-21)*2.2+(Math.random()-.5)*1.2;
-    return {t:ts,temp:+temp.toFixed(1),hum:Math.round(hum),pres};
-  }
-  function bloque(p){
-    const aire=p.pres&&p.temp>=27, vent=p.pres&&!aire&&p.temp>=24;
-    return ['--------------------','Temperatura: '+p.temp.toFixed(2),'Humedad: '+p.hum.toFixed(2),'Personas: '+(p.pres?'SI':'NO'),'Nivel de luz: 2100',
-      'Cortina: ABIERTA','Luces: '+(p.pres?'ENCENDIDAS':'APAGADAS'),'Ventilador: '+(vent?'ENCENDIDO':'APAGADO'),'Aire acondicionado: '+(aire?'ENCENDIDO':'APAGADO'),'Modo: AUTOMATICO'];
-  }
-  function demo(){
-    error(''); datos=[]; eventos=[]; estado={}; actual={}; lineas.length=0;
-    modo='demo';
-    const ahora=Date.now();
-    for(let ts=ahora-3600e3; ts<ahora; ts+=INTERVALO*1000){ const p=simular(ts); const prev=datos[datos.length-1]; if(prev&&p.pres!==prev.pres) eventos.push({t:ts,pres:p.pres}); datos.push(p); }
-    const tick=()=>{ bloque(simular(Date.now())).forEach(procesar); };
-    tick(); reloj=setInterval(tick,INTERVALO*1000);
-    mostrarEstado('Datos de ejemplo','ac','Mostrando datos de ejemplo','Son datos inventados para ver cómo funciona la página. Conectá el ESP32 para ver los reales.');
-    $('bDemo').textContent='Datos de ejemplo activos'; $('bDemo').disabled=true;
-  }
-  function pararDemo(){ clearInterval(reloj); reloj=null; $('bDemo').textContent='Ver datos de ejemplo'; $('bDemo').disabled=false; }
-  $('bDemo').onclick=demo;
-
-  // ---------- Pintar ----------
-  function pintarTodo(){ pintarVivo(); pintarEquipos(); pintarEventos(); pintarGrafico(); }
-
-  function pintarVivo(){
-    const t=estado.temp, h=estado.hum;
-    if(t==null){
-      $('vTemp').textContent='--'; $('aguja').hidden=true;
-      $('zona').textContent=datos.length||modo!=='nada'?'Sin dato':'--'; $('zona').className='chip';
-      $('zonaTxt').textContent=modo==='nada'?'Conectá el ESP32 para ver la temperatura del aula.':'El sensor no está dando la temperatura: revisá los cables del DHT11.';
-    }else{
-      $('vTemp').innerHTML=fmt(t)+'<small> °C</small>';
-      $('aguja').hidden=false; $('aguja').style.left=Math.max(0,Math.min(100,(t-16)/18*100))+'%';
-      let z,txt;
-      if(t<24){z='Confortable';txt='Por debajo de 24 °C: no hace falta ventilar.';}
-      else if(t<27){z='Templado';txt='Entre 24 y 27 °C: con gente, el sistema prende el ventilador.';}
-      else{z='Caluroso';txt='27 °C o más: con gente, el sistema prende el aire.';}
-      $('zona').textContent=z; $('zona').className='chip'+(t>=27?' bad':t>=24?' ac':'');
-      $('zonaTxt').textContent=txt;
-    }
-    $('vHum').innerHTML=h==null?'--':Math.round(h)+'<small> %</small>';
-    $('nHum').textContent=h==null?'--':h<40?'Ambiente seco':h>65?'Ambiente húmedo':'Rango normal';
-    if(estado.pres==null){ $('vPres').textContent='--'; $('nPres').textContent='--'; $('icoPres').className='ico'; }
-    else{
-      $('vPres').textContent=estado.pres?'Hay gente':'Aula vacía';
-      $('icoPres').className='ico'+(estado.pres?' on':'');
-      const ult=eventos[eventos.length-1];
-      $('nPres').textContent=ult?'Desde las '+hora(ult.t):'Sin cambios todavía';
-    }
-  }
-
-  function pintarEquipos(){
-    const marca=(id,v)=>{ const el=$(id); el.textContent=lindo(v); el.style.color=v&&/^(ENCENDID|CERRAD)/i.test(v)?'var(--accent)':''; };
-    marca('eAire',estado.aire); marca('eVent',estado.vent); marca('eLuces',estado.luces); marca('eCortina',estado.cortina);
-    $('eLuz').textContent=estado.luz==null?'--':estado.luz+' de 4095';
-    $('modoChip').textContent=estado.modo?lindo(estado.modo):'--';
-    $('modoChip').className='chip'+(estado.modo?' ac':'');
-  }
-
-  function pintarEventos(){
-    const lista=eventos.slice(-6).reverse();
-    $('eventos').innerHTML=lista.map(e=>`<li><span class="ico${e.pres?' on':''}"><svg class="ic"><use href="#i-users"/></svg></span><div>${e.pres?'Entró gente':'El aula quedó vacía'}</div><span class="h">${hora(e.t)}</span></li>`).join('')||'<li>Todavía no hay cambios.</li>';
-    $('evRes').textContent=eventos.length?eventos.length+(eventos.length===1?' cambio':' cambios'):'--';
-  }
-
-  function pintarGrafico(){
-    const desde=Date.now()-minutos*60e3;
-    let pts=datos.filter(p=>p.t>=desde && p.temp!=null);
-    if(pts.length<2){ $('chart').innerHTML='<p class="vacio">'+(modo==='nada'?'El gráfico aparece con las primeras lecturas.':'Juntando lecturas…')+'</p>'; return; }
-    const paso=Math.max(1,Math.floor(pts.length/240)); pts=pts.filter((_,i)=>i%paso===0||i===pts.length-1);
-    const W=900,H=260,L=40,R=40,T=14,B=28,iw=W-L-R,ih=H-T-B;
-    const t0=pts[0].t,t1=pts[pts.length-1].t;
-    const x=t=>L+(t-t0)/(t1-t0||1)*iw;
-    const tMin=Math.floor(Math.min(...pts.map(p=>p.temp),23)-1),tMax=Math.ceil(Math.max(...pts.map(p=>p.temp),28)+1);
-    const yT=v=>T+(1-(v-tMin)/(tMax-tMin))*ih;
-    const yH=v=>T+(1-(v-20)/80)*ih;
-    let s='', ini=null;
-    pts.forEach((p,i)=>{ if(p.pres&&ini===null)ini=p.t; if((!p.pres||i===pts.length-1)&&ini!==null){s+=`<rect class="g-pres" x="${x(ini)}" y="${T}" width="${Math.max(1,x(p.t)-x(ini))}" height="${ih}"/>`;ini=null;} });
-    const pasoT=(tMax-tMin)>8?2:1;
-    for(let v=tMin;v<=tMax;v+=pasoT){s+=`<line class="g-grid" x1="${L}" x2="${W-R}" y1="${yT(v)}" y2="${yT(v)}"/><text class="g-eje" x="${L-8}" y="${yT(v)+4}" text-anchor="end">${v}°</text>`;}
-    [20,40,60,80,100].forEach(v=>{s+=`<text class="g-eje" x="${W-R+8}" y="${yH(v)+4}">${v}%</text>`;});
-    [24,27].forEach(u=>{if(u>tMin&&u<tMax)s+=`<line class="g-u" x1="${L}" x2="${W-R}" y1="${yT(u)}" y2="${yT(u)}"/><text class="g-ut" x="${L+6}" y="${yT(u)-5}">${u} °C</text>`;});
-    for(let i=0;i<=4;i++){const t=t0+(t1-t0)*i/4;s+=`<text class="g-eje" x="${x(t)}" y="${H-8}" text-anchor="${i===0?'start':i===4?'end':'middle'}">${hora(t)}</text>`;}
-    const lt=pts.map(p=>`${x(p.t).toFixed(1)},${yT(p.temp).toFixed(1)}`).join(' ');
-    s+=`<polygon class="g-area" points="${L},${T+ih} ${lt} ${W-R},${T+ih}"/>`;
-    const conHum=pts.filter(p=>p.hum!=null);
-    if(conHum.length>1) s+=`<polyline class="g-h" points="${conHum.map(p=>`${x(p.t).toFixed(1)},${yH(p.hum).toFixed(1)}`).join(' ')}"/>`;
-    s+=`<polyline class="g-t" points="${lt}"/>`;
-    const u=pts[pts.length-1];
-    s+=`<circle cx="${x(u.t)}" cy="${yT(u.temp)}" r="5" fill="var(--accent)" stroke="var(--bg)" stroke-width="2"/>`;
-    $('chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperatura y humedad de los últimos ${minutos} minutos">${s}</svg>`;
-  }
-
-  $('rango').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-    minutos=+b.dataset.m;[...$('rango').children].forEach(x=>x.classList.toggle('activo',x===b));pintarGrafico();});
-  $('bTema').addEventListener('click',()=>{const r=document.documentElement;
-    const osc=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
-    r.dataset.theme=osc?'light':'dark';});
-
-  // =====================================================================
-  // BASE DE DATOS (Microsoft Access)
-  // La página le pide los datos al servidor local (servidor.mjs), que lee y escribe
-  // ClimControl.accdb (el conector es "Conectar base de datos.bat").
-  // Publicada en Vercel, le pide los datos al conector de la computadora donde se abre
-  // (http://localhost:5500). Si el conector no está abierto, la página funciona igual,
-  // con el ingreso de prueba y sin guardar datos.
-  // =====================================================================
-  let hayBase=false, errorBase=null;
-  let perfil=null;    // { nombre, rol } del usuario que entró
-  let aulas=[], consultas=[];
-  const token={ leer(){try{return sessionStorage.getItem('aula_token');}catch(e){return null;}},
-                guardar(t){try{t?sessionStorage.setItem('aula_token',t):sessionStorage.removeItem('aula_token');}catch(e){}} };
-
-  // En esta computadora la página habla con el conector en la misma dirección; publicada en Vercel, se lo pide a localhost
-  const EN_CONECTOR=/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port==='5500';
-  const API=(EN_CONECTOR?'':'http://localhost:5500')+'/api/';
-
-  async function api(ruta,datos){
-    const op={headers:{}};
-    const t=token.leer(); if(t) op.headers.Authorization='Bearer '+t;
-    if(datos!==undefined){ op.method='POST'; op.headers['Content-Type']='application/json'; op.body=JSON.stringify(datos); }
-    let r;
-    try{ r=await fetch(API+ruta,op); }catch(e){ const x=new Error('No se pudo hablar con el conector. ¿Está abierta la ventana de «Conectar base de datos.bat»?'); x.sinConector=true; throw x; }
-    let cuerpo={}; try{ cuerpo=await r.json(); }catch(e){}
-    if(r.status===401 && ruta!=='ingresar' && perfil){ volverAlIngreso(cuerpo.error||'La sesión se cerró. Volvé a ingresar.'); }
-    if(!r.ok) throw new Error(cuerpo.error||('Error '+r.status));
-    return cuerpo;
-  }
-  // ¿La página la sirve el servidor local con la base de Access?
-  const detectarBase=(async()=>{
-    if(!/^https?:$/.test(location.protocol)) return;
-    try{
-      let e;
-      for(let i=0;i<40;i++){   // si la base todavía se está abriendo, espera hasta 40 segundos
-        const r=await fetch(API+'estado',{cache:'no-store'});
-        if(!r.ok) return;
-        e=await r.json();
-        if(!e.iniciando) break;
-        await new Promise(ok=>setTimeout(ok,1000));
-      }
-      hayBase=!!e.base; errorBase=e.base?null:(e.error||'tardó demasiado en abrir. Cerrá la ventana negra y volvé a abrir «Conectar base de datos.bat».');
-    }catch(e){}
-  })();
-
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const horaSeg=ts=>new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
-  const fechaHora=v=>new Date(v).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-  // Cómo se muestra cada valor que devuelve Access
-  const valor=v=>v===true?'Sí':v===false?'No':v==null?'—':typeof v==='number'?String(v).replace('.',','):/^\d{4}-\d\d-\d\dT/.test(v)?fechaHora(v):v;
-  function tabla(cab,filas){
-    if(!filas.length) return '<p class="vacio">La consulta no devolvió datos.</p>';
-    return '<table class="tabla"><thead><tr>'+cab.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+
-      filas.map(f=>'<tr>'+f.map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
-  }
-
-  // ---------- Guardar lo que llega del ESP32 ----------
-  const GUARDAR_CADA_MS=10000;   // una lectura cada 10 segundos; los eventos, apenas cambia un equipo
-  const EQUIPOS=['aire','ventilador','luces','cortina'];
-  const guardado={ ultima:0, cantidad:0, ocupado:false, previo:null };
-  const prendido=v=>!!v && /^(ENCENDID|CERRAD)/i.test(v);
-  function reiniciarGuardado(){ guardado.ultima=0; guardado.cantidad=0; guardado.previo=null; textoGuardado(); }
-  function textoGuardado(txt,clase){
-    const el=$('guardadoTxt');
-    if(txt){ el.textContent=txt; el.className='guardado'+(clase?' '+clase:''); return; }
-    el.className='guardado';
-    el.textContent=modo==='usb'
-      ? 'Guardando en Access: '+guardado.cantidad+(guardado.cantidad===1?' lectura':' lecturas')+(guardado.ultima?' · la última a las '+horaSeg(guardado.ultima):'')
-      : 'Los datos se guardan en la base de Access mientras el ESP32 está conectado.';
-  }
-  async function guardarEnBase(){
-    if(!hayBase || !perfil || modo!=='usb' || guardado.ocupado) return;
-    const aula=parseInt($('selAula').value,10);
-    if(!aula) return;
-    const ahora={ aire:prendido(estado.aire), ventilador:prendido(estado.vent), luces:prendido(estado.luces), cortina:prendido(estado.cortina) };
-    // al conectar, solo se registra lo que ya está prendido
-    const eventosNuevos=EQUIPOS.filter(k=>ahora[k]!==(guardado.previo?guardado.previo[k]:false)).map(k=>({equipo:k,encendido:ahora[k]}));
-    const tocaLectura=Date.now()-guardado.ultima>=GUARDAR_CADA_MS;
-    if(!eventosNuevos.length && !tocaLectura) return;
-    const previoAnterior=guardado.previo;
-    guardado.previo=ahora;
-    guardado.ocupado=true;
-    try{
-      if(eventosNuevos.length) await api('eventos',{idAula:aula,eventos:eventosNuevos});
-      if(tocaLectura){
-        await api('lecturas',{idAula:aula,temperatura:estado.temp??null,humedad:estado.hum??null,hayPersonas:!!estado.pres});
-        guardado.ultima=Date.now(); guardado.cantidad++;
-      }
-      textoGuardado(); actualizarVivo();
-    }catch(e){
-      guardado.previo=previoAnterior;
-      textoGuardado('No se pudo guardar en Access ('+e.message+'). Se reintenta con la próxima lectura.','mal');
-    }
-    guardado.ocupado=false;
-  }
-
-  // ---------- Aulas ----------
-  async function cargarAulas(){
-    try{ aulas=(await api('aulas')).aulas; }
-    catch(e){ $('cError').textContent='No se pudieron leer las aulas: '+e.message; $('cError').hidden=false; return; }
-    const opciones=aulas.map(a=>'<option value="'+a.IdAula+'">'+esc(a.Nombre)+'</option>').join('');
-    const elegida=$('selAula').value;
-    $('selAula').innerHTML=opciones;
-    if(elegida && aulas.some(a=>String(a.IdAula)===elegida)) $('selAula').value=elegida;
-    const admin=!!(perfil && perfil.rol==='superadmin');
-    $('seccionAulas').hidden=!admin;
-    $('aulasLista').innerHTML=tabla(['N°','Aula','Encargado'],aulas.map(a=>[a.IdAula,a.Nombre,a.Encargado||'—']));
-    if(admin){
-      try{
-        const u=(await api('usuarios')).usuarios;
-        $('aEncargado').innerHTML='<option value="">Sin encargado</option>'+u.map(x=>'<option value="'+x.IdUsuario+'">'+esc(x.Nombre)+'</option>').join('');
-      }catch(e){}
-    }
-  }
-  $('formAula').addEventListener('submit',async e=>{
-    e.preventDefault();
-    const err=$('aError'), nombre=$('aNombre').value.trim();
-    err.hidden=true;
-    if(!nombre){ err.textContent='Escribí el nombre del aula.'; err.hidden=false; return; }
-    const encargado=parseInt($('aEncargado').value,10);
-    try{ await api('aulas',{nombre,idEncargado:isNaN(encargado)?null:encargado}); }
-    catch(x){ err.textContent=x.message; err.hidden=false; return; }
-    $('aNombre').value='';
-    cargarAulas();
-  });
-
-  // ---------- Consultas (están guardadas en la base de Access; se leen de ahí con su SQL) ----------
-  function mostrarConsulta(){
-    const c=consultas.find(x=>x.nombre===$('cConsulta').value);
-    $('cDesc').textContent=c?c.descripcion||'':'';
-    $('cSql').textContent=c?c.sql.trim():'';
-    $('cResultado').innerHTML=''; $('cResumen').textContent=''; $('cError').hidden=true;
-  }
-  async function cargarConsultas(){
-    try{ consultas=(await api('consultas')).consultas; }catch(e){ consultas=[]; }
-    $('cConsulta').innerHTML=consultas.map(c=>'<option value="'+esc(c.nombre)+'">'+esc(c.nombre)+'</option>').join('');
-    $('cConsulta').disabled=!consultas.length; $('bConsultar').disabled=!consultas.length;
-    mostrarConsulta();
-  }
-  $('cConsulta').onchange=mostrarConsulta;
-  $('bConsultar').onclick=async()=>{
-    const err=$('cError'), nombre=$('cConsulta').value;
-    err.hidden=true;
-    if(!hayBase || !perfil || !nombre){ $('cSinBase').hidden=false; return; }
-    $('bConsultar').disabled=true; $('cResumen').textContent='Consultando…';
-    try{
-      const r=await api('consultas/ejecutar?nombre='+encodeURIComponent(nombre));
-      $('cResultado').innerHTML=tabla(r.columnas,r.filas.map(f=>f.map(valor)));
-      $('cResumen').textContent=r.filas.length+(r.filas.length===1?' fila':' filas')+' · consultado a las '+horaSeg(Date.now());
-    }catch(e){
-      err.textContent='Access respondió con un error: '+e.message; err.hidden=false; $('cResumen').textContent='';
-    }
-    $('bConsultar').disabled=false;
+// =====================================================================
+// DATOS: la misma "API" para Supabase y para la demo
+// =====================================================================
+function apiSupabase(){
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_CLAVE, { auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+  const r = ({data, error}) => { if (error) throw error; return data; };
+  let uid = null;
+  return {
+    demo:false, url:SUPABASE_URL, clave:SUPABASE_CLAVE,
+    alSalir(fn){ sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') fn(); }); },
+    async sesion(){ const { data:{ session } } = await sb.auth.getSession(); uid = session ? session.user.id : null; return session ? { id:session.user.id, email:session.user.email } : null; },
+    async ingresar(email, clave){ const d = r(await sb.auth.signInWithPassword({ email, password:clave })); uid = d.user.id; },
+    async registrarse(nombre, email, clave){
+      const d = r(await sb.auth.signUp({ email, password:clave, options:{ data:{ nombre }, emailRedirectTo: location.origin + location.pathname } }));
+      if (d.user && Array.isArray(d.user.identities) && d.user.identities.length === 0) throw new Error('already registered');
+      if (d.session) uid = d.user.id;
+      return { confirmar: !d.session };
+    },
+    async salir(){ await sb.auth.signOut(); uid = null; },
+    async perfil(){ return r(await sb.from('perfiles').select('nombre, creado_en').eq('id', uid).single()); },
+    async guardarNombre(nombre){ r(await sb.from('perfiles').update({ nombre }).eq('id', uid)); },
+    async cambiarClave(clave){ r(await sb.auth.updateUser({ password:clave })); },
+    async config(){ return r(await sb.from('configuracion').select('*').eq('usuario_id', uid).single()); },
+    async guardarConfig(c){ const { usuario_id, actualizado_en, ...cambios } = c; return r(await sb.from('configuracion').update(cambios).eq('usuario_id', uid).select().single()); },
+    async estadoAulas(){ return r(await sb.from('estado_aulas').select('*').order('nombre')); },
+    async crearAula(nombre){ return r(await sb.rpc('crear_aula', { p_nombre:nombre })); },
+    async renombrarAula(id, nombre){ r(await sb.from('aulas').update({ nombre }).eq('id', id)); },
+    async borrarAula(id){ r(await sb.from('aulas').delete().eq('id', id)); },
+    async nuevaClave(id){ return r(await sb.rpc('nueva_clave_dispositivo', { p_aula:id })); },
+    async grafico(aula, desde, paso){ return r(await sb.rpc('lecturas_grafico', { p_aula:aula, p_desde:desde.toISOString(), p_paso_seg:paso })); },
+    async eventos(aula, n){ return r(await sb.from('eventos').select('fecha_hora, equipo, encendido').eq('aula_id', aula).order('fecha_hora', { ascending:false }).limit(n)); },
+    async consumoPorDia(desde, hasta){ return r(await sb.rpc('consumo_por_dia', { p_desde:desde.toISOString(), p_hasta:hasta.toISOString() })); },
+    async consulta(vista){ return r(await sb.from(vista).select('*')); },
   };
+}
 
-  // ---------- La base en vivo: lo último que se guardó en Access ----------
-  let relojVivo=null;
-  async function actualizarVivo(){
-    if(!hayBase || !perfil || $('app').hidden) return;
-    try{
-      const r=await api('ultimos');
-      $('vivoNL').textContent='('+r.totalLecturas+' en total)'; $('vivoNE').textContent='('+r.totalEventos+' en total)';
-      $('vivoLecturas').innerHTML=r.lecturas.length
-        ? tabla(['Aula','Fecha y hora','Temp.','Humedad','Gente'],r.lecturas.map(l=>[l.Aula,valor(l.FechaHora),valor(l.Temperatura),valor(l.Humedad),valor(l.HayPersonas)]))
-        : '<p class="vacio">Todavía no hay lecturas. Conectá el ESP32 y se van a ir guardando acá.</p>';
-      $('vivoEventos').innerHTML=r.eventos.length
-        ? tabla(['Aula','Fecha y hora','Equipo','Estado'],r.eventos.map(e=>[e.Aula,valor(e.FechaHora),e.Equipo,e.Encendido?'Prendido':'Apagado']))
-        : '<p class="vacio">Todavía no hay eventos. Aparecen cuando un equipo se prende o se apaga.</p>';
-      $('vivoRes').textContent='Se actualiza solo · '+horaSeg(Date.now());
-    }catch(e){ $('vivoRes').textContent='Sin respuesta del conector'; }
-  }
-  function vivo(prender){ clearInterval(relojVivo); relojVivo=null; if(prender){ actualizarVivo(); relojVivo=setInterval(actualizarVivo,3000); } }
-
-  function prepararBase(){
-    const conectada=!!(hayBase && perfil);
-    $('bdBox').hidden=!conectada;
-    $('seccionVivo').hidden=!conectada;
-    document.querySelector('#seccionConsultas .consulta-form').style.display=conectada?'':'none';
-    document.querySelector('#seccionConsultas details.sql').style.display=conectada?'':'none';
-    $('cSinBase').hidden=conectada;
-    if(errorBase) $('cSinBase').textContent='El conector no pudo abrir la base de Access: '+errorBase;
-    vivo(conectada);
-    $('bdTxt').textContent=conectada?'Access · '+perfil.nombre:'Sin conectar';
-    $('bdChip').className='chip'+(conectada?' ok':'');
-    if(conectada){ cargarAulas(); cargarConsultas(); }
-    else { $('seccionAulas').hidden=true; consultas=[]; $('cConsulta').innerHTML=''; mostrarConsulta(); }
-  }
-
-  // ---------- Ingreso ----------
-  // Con la base: usuario y contraseña de la tabla Usuarios de Access (el servidor compara la contraseña cifrada).
-  // Sin la base: ingreso de prueba con los mismos usuarios (no es seguridad real). Están las claves cifradas, no las claves.
-  const USUARIOS={ octavio:'f623bafb1306ef1b5597c1d1cfbbc3463c6066d312e1259dbda06b1d69d1e15b',
-                   facundo:'39531a9898d2b90cb493e798dcf72914f326c4ca1d8836fa0135be17f80cbc4f' };
-  async function sha256(s){
-    if(!window.crypto || !crypto.subtle) return '';
-    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
-    return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  }
-  const recordar={ leer(){try{return sessionStorage.getItem('aula_sesion');}catch(e){return null;}},
-                   guardar(u){try{u?sessionStorage.setItem('aula_sesion',u):sessionStorage.removeItem('aula_sesion');}catch(e){}} };
-  function entrar(){
-    $('pantallaLogin').hidden=true; $('app').hidden=false;
-    pintarTodo(); prepararBase();
-  }
-  function volverAlIngreso(msg){
-    perfil=null; token.guardar(null); recordar.guardar(null); vivo(false);
-    $('app').hidden=true; $('pantallaLogin').hidden=false;
-    if(msg){ $('lError').textContent=msg; $('lError').hidden=false; }
-    $('lUsuario').focus();
-  }
-  $('formLogin').addEventListener('submit',async e=>{
-    e.preventDefault();
-    const u=$('lUsuario').value.trim(), c=$('lClave').value, err=$('lError');
-    const fallo=t=>{ err.textContent=t; err.hidden=false; $('lClave').value=''; };
-    if(!u||!c) return fallo('Completá el usuario y la contraseña.');
-    err.hidden=true;
-    await detectarBase;
-    if(hayBase){
-      try{
-        const r=await api('ingresar',{usuario:u,clave:c});
-        token.guardar(r.token); perfil={nombre:r.nombre,rol:r.rol};
-        $('lClave').value=''; entrar(); return;
-      }catch(x){
-        if(!x.sinConector) return fallo(x.message);
-        hayBase=false;   // se cerró el conector: sigue con el ingreso de prueba, sin base
-      }
-    }
-    if(!USUARIOS[u.toLowerCase()] || USUARIOS[u.toLowerCase()]!==await sha256(c)) return fallo('El usuario o la contraseña no coinciden.');
-    $('lClave').value=''; recordar.guardar(u); entrar();
-  });
-  $('bSalir').onclick=async()=>{
-    await desconectar(false); if(modo==='demo'){ pararDemo(); modo='nada'; mostrarEstado('Sin conectar','','Conectá el ESP32 por USB','Lee los mismos datos que muestra el Serial Monitor de Arduino IDE.'); }
-    if(hayBase && token.leer()){ try{ await api('salir',{}); }catch(e){} }
-    volverAlIngreso(); prepararBase();
+// ---------- Demo: datos inventados que se comportan como un aula real ----------
+function apiDemo(){
+  const t0 = Date.now();
+  const st = {
+    perfil:{ nombre:'Usuario de prueba', creado_en:new Date(t0 - 40 * 864e5).toISOString() },
+    config:{ ...VALORES_DE_FABRICA, actualizado_en:new Date(t0).toISOString() },
+    aulas:[
+      { id:1, nombre:'Aula 101', codigo:'CC-4F2A9B', base:0 },
+      { id:2, nombre:'Aula 102', codigo:'CC-B71C03', base:-1.6 },
+      { id:3, nombre:'Laboratorio de Informática', codigo:'CC-9E5D11', base:1.4, hasta:t0 - 2 * 36e5 },
+    ],
+    siguiente:4,
   };
+  const ruido = n => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+  const suave = (k, t, per) => { const x = t / per, i = Math.floor(x), f = x - i, a = ruido(i * 31 + k), b = ruido((i + 1) * 31 + k); return a + (b - a) * f * f * (3 - 2 * f); };
+  function simular(a, ts){
+    if (a.nueva || (a.hasta && ts > a.hasta)) return null;
+    const d = new Date(ts), h = d.getHours() + d.getMinutes() / 60, finde = d.getDay() === 0 || d.getDay() === 6;
+    const bloque = Math.floor(ts / 6e5);
+    const enClase = (h >= 8 && h < 12.5) || (h >= 14 && h < 18) || (a.id !== 3 && h >= 19 && h < 22.5);
+    const gente = !finde && enClase && ruido(bloque * 3 + a.id) > 0.15;
+    const temp = 24.3 + 5.2 * Math.sin((h - 10.5) / 24 * 2 * Math.PI) + a.base + (suave(a.id + 100, ts, 864e5) - .5) * 3
+               + (suave(a.id, ts, 36e5) - .5) * 1.6 + (gente ? 1 : 0) + (suave(a.id + 50, ts, 3e5) - .5) * .5;
+    const hum = 62 - (temp - 22) * 2 + (suave(a.id + 7, ts, 18e5) - .5) * 6;
+    const c = st.config;
+    const aire = gente && temp >= c.temp_aire, ventilador = gente && !aire && temp >= c.temp_ventilador;
+    const luces = gente && (h < 9 || h >= 18.5 || ruido(bloque + a.id * 99) > .72);
+    return { t:ts, temperatura:Math.round(temp * 10) / 10, humedad:Math.round(hum * 10) / 10, hay_personas:gente, ventilador, aire, luces };
+  }
+  const aula = id => st.aulas.find(a => a.id === +id);
+  const ultimoTs = a => Math.floor((a.hasta || Date.now()) / 1e4) * 1e4;
+  function eventosDe(a, desde){
+    const lista = []; let prev = null;
+    for (let ts = Math.floor(desde / 3e4) * 3e4; ts <= ultimoTs(a); ts += 3e4){
+      const p = simular(a, ts); if (!p) continue;
+      if (prev) for (const [k, eq] of [['ventilador','ventilador'],['aire','aire'],['luces','luces'],['hay_personas','presencia']])
+        if (p[k] !== prev[k]) lista.push({ fecha_hora:new Date(ts).toISOString(), equipo:eq, encendido:p[k], aula:a.nombre });
+      prev = p;
+    }
+    return lista;
+  }
+  function potenciaAire(temp){ const c = st.config; return temp >= c.aire_limite_2 ? c.aire_w_alto : temp >= c.aire_limite_1 ? c.aire_w_medio : c.aire_w_bajo; }
+  const espera = (v) => new Promise(ok => setTimeout(() => ok(v), 120));
+  return {
+    demo:true, url:'https://TU-PROYECTO.supabase.co', clave:'TU-CLAVE-PUBLICA',
+    alSalir(){},
+    async sesion(){ return { id:'demo', email:'demo@climcontrol.app' }; },
+    async salir(){},
+    async perfil(){ return espera({ ...st.perfil }); },
+    async guardarNombre(n){ st.perfil.nombre = n; return espera(); },
+    async cambiarClave(){ throw new Error('En la demo no se puede cambiar la contraseña.'); },
+    async config(){ return espera({ ...st.config }); },
+    async guardarConfig(c){ Object.assign(st.config, c, { actualizado_en:new Date().toISOString() }); return espera({ ...st.config }); },
+    async estadoAulas(){
+      return espera(st.aulas.map(a => {
+        const ts = ultimoTs(a), p = simular(a, ts);
+        return { aula_id:a.id, nombre:a.nombre, codigo:a.codigo, ultimo_contacto:p ? new Date(a.hasta || Date.now() - 3000).toISOString() : null,
+                 fecha_hora:p ? new Date(ts).toISOString() : null, temperatura:p?.temperatura ?? null, humedad:p?.humedad ?? null,
+                 hay_personas:p?.hay_personas ?? null, ventilador:p?.ventilador ?? null, aire:p?.aire ?? null, luces:p?.luces ?? null };
+      }).sort((x, y) => x.nombre.localeCompare(y.nombre)));
+    },
+    async crearAula(nombre){
+      nombre = nombre.trim();
+      if (!nombre || nombre.length > 60) throw new Error('NOMBRE_INVALIDO');
+      if (st.aulas.some(a => a.nombre.toLowerCase() === nombre.toLowerCase())) throw new Error('NOMBRE_REPETIDO');
+      const codigo = 'CC-' + Math.random().toString(16).slice(2, 8).toUpperCase().padEnd(6, '0');
+      const a = { id:st.siguiente++, nombre, codigo, base:0, nueva:true }; st.aulas.push(a);
+      return espera({ aula_id:a.id, codigo, clave:crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '') });
+    },
+    async renombrarAula(id, nombre){
+      if (st.aulas.some(a => a.id !== id && a.nombre.toLowerCase() === nombre.trim().toLowerCase())) throw new Error('NOMBRE_REPETIDO');
+      aula(id).nombre = nombre.trim(); return espera();
+    },
+    async borrarAula(id){ st.aulas = st.aulas.filter(a => a.id !== id); return espera(); },
+    async nuevaClave(id){ return espera({ codigo:aula(id).codigo, clave:crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '') }); },
+    async grafico(id, desde, paso){
+      const a = aula(id); if (!a) return [];
+      const fin = ultimoTs(a), filas = [];
+      for (let ts = Math.ceil(desde / (paso * 1e3)) * paso * 1e3; ts <= fin; ts += paso * 1e3){
+        const p = simular(a, ts); if (p) filas.push({ t:new Date(ts).toISOString(), temperatura:p.temperatura, humedad:p.humedad, hay_personas:p.hay_personas });
+      }
+      return espera(filas);
+    },
+    async eventos(id, n){ const a = aula(id); return espera(a ? eventosDe(a, Date.now() - 12 * 36e5).reverse().slice(0, n) : []); },
+    async consumoPorDia(desde, hasta){
+      const c = st.config, filas = new Map(), PASO = 6e4, fin = Math.min(+hasta, Date.now());
+      for (const a of st.aulas){
+        for (let ts = Math.floor(+desde / PASO) * PASO; ts < fin; ts += PASO){
+          const p = simular(a, ts); if (!p) continue;
+          const dia = isoDia(new Date(ts)), k = a.id + '|' + dia;
+          let f = filas.get(k); if (!f){ f = { aula_id:a.id, dia, horas_ventilador:0, horas_aire:0, horas_luces:0, kwh_ventilador:0, kwh_aire:0, kwh_luces:0 }; filas.set(k, f); }
+          const hh = PASO / 36e5;
+          if (p.ventilador){ f.horas_ventilador += hh; f.kwh_ventilador += hh * c.potencia_ventilador_w / 1000; }
+          if (p.aire){ f.horas_aire += hh; f.kwh_aire += hh * potenciaAire(p.temperatura) / 1000; }
+          if (p.luces){ f.horas_luces += hh; f.kwh_luces += hh * c.potencia_luces_w / 1000; }
+        }
+      }
+      return espera([...filas.values()]);
+    },
+    async consulta(vista){
+      const c = st.config, ahora = Date.now(), muestras = [];
+      for (const a of st.aulas) for (let ts = Math.floor((ahora - 864e5) / 3e5) * 3e5; ts <= ultimoTs(a); ts += 3e5){ const p = simular(a, ts); if (p) muestras.push({ ...p, aula:a.nombre }); }
+      const por = {
+        consulta_promedios_por_aula: () => st.aulas.map(a => { const m = muestras.filter(x => x.aula === a.nombre); const prom = k => m.length ? Math.round(m.reduce((s, x) => s + x[k], 0) / m.length * 10) / 10 : null;
+          return { aula:a.nombre, lecturas:m.length * 30, temperatura_promedio:prom('temperatura'), humedad_promedio:prom('humedad') }; }).sort((x, y) => x.aula.localeCompare(y.aula)),
+        consulta_calor_con_gente: () => muestras.filter(x => x.hay_personas && x.temperatura >= c.temp_ventilador).sort((x, y) => y.t - x.t).slice(0, 50)
+          .map(x => ({ aula:x.aula, fecha_hora:new Date(x.t).toISOString(), temperatura:x.temperatura, humedad:x.humedad })),
+        consulta_encendidos_por_equipo: () => { const g = new Map();
+          for (const a of st.aulas) for (const e of eventosDe(a, ahora - 864e5)) if (e.encendido && e.equipo !== 'presencia'){ const k = a.nombre + '|' + e.equipo; const v = g.get(k) || { aula:a.nombre, equipo:e.equipo, veces_que_se_prendio:0, ultima_vez:null }; v.veces_que_se_prendio++; v.ultima_vez = e.fecha_hora; g.set(k, v); }
+          return [...g.values()].sort((x, y) => (x.aula + x.equipo).localeCompare(y.aula + y.equipo)); },
+        consulta_aulas_y_dispositivos: () => st.aulas.map(a => { const contacto = a.nueva ? null : new Date(a.hasta || ahora - 3000).toISOString();
+          return { aula:a.nombre, responsable:st.perfil.nombre, dispositivo:a.codigo, ultimo_contacto:contacto, en_linea:!!contacto && ahora - new Date(contacto) < 6e4 }; }).sort((x, y) => x.aula.localeCompare(y.aula)),
+        consulta_ultimas_lecturas: () => { const f = []; for (const a of st.aulas) for (let i = 0; i < 10; i++){ const ts = ultimoTs(a) - i * 1e4, p = simular(a, ts); if (p) f.push({ aula:a.nombre, fecha_hora:new Date(ts).toISOString(), temperatura:p.temperatura, humedad:p.humedad, hay_personas:p.hay_personas, ventilador:p.ventilador, aire:p.aire, luces:p.luces }); }
+          return f.sort((x, y) => new Date(y.fecha_hora) - new Date(x.fecha_hora)).slice(0, 10); },
+      };
+      return espera(por[vista]());
+    },
+  };
+}
 
-  window.monitorProcesar=procesar;   // para probar la lectura sin el ESP32
+// =====================================================================
+// ESTADO DE LA PÁGINA
+// =====================================================================
+let api = null, usuario = null, perfil = null, cfg = { ...VALORES_DE_FABRICA }, aulas = [];
+let aulaSel = +leerLocal('aula') || null, vista = 'inicio', horasGrafico = 1;
+let periodo = 'hoy', filtroAula = 'todas';
+let consumoHoy = { ts:0, filas:[] };
+const VISTAS = { inicio:'Inicio', aulas:'Aulas', consumos:'Consumos', consultas:'Consultas', perfil:'Perfil', configuracion:'Configuración' };
+const supabaseListo = !!(SUPABASE_URL && SUPABASE_CLAVE && window.supabase);
+
+// ---------- Diálogo genérico ----------
+function dialogo({ titulo, html, botones }){
+  const d = $('dlg');
+  $('dlgTitulo').textContent = titulo; $('dlgCuerpo').innerHTML = html;
+  $('dlgAcc').innerHTML = botones.map((b, i) => `<button class="boton ${b.clase || ''}" value="${i}" ${b.submit ? '' : 'formnovalidate'}>${esc(b.txt)}</button>`).join('');
+  return new Promise(ok => {
+    d.onclose = () => ok(d.returnValue === '' ? null : botones[+d.returnValue]?.valor ?? null);
+    d.returnValue = ''; d.showModal();
+    const foco = d.querySelector('input') || d.querySelector('.dl-acc .boton:last-child'); if (foco) foco.focus();
+  });
+}
+
+// =====================================================================
+// INGRESO Y CUENTAS
+// =====================================================================
+let modoIngreso = 'ingresar';
+function mostrarIngreso(msg){
+  $('app').hidden = true; $('pantallaIngreso').hidden = false; pararRelojes();
+  $('sinSupabase').hidden = supabaseListo;
+  $('formIngreso').hidden = !supabaseListo; $('modoIngreso').hidden = !supabaseListo;
+  if (msg){ $('iError').textContent = msg; $('iError').hidden = false; }
+}
+function ponerModo(m){
+  modoIngreso = m;
+  [...$('modoIngreso').children].forEach(b => { const on = b.dataset.modo === m; b.classList.toggle('activo', on); b.setAttribute('aria-selected', on); });
+  $('campoNombre').hidden = m !== 'crear'; $('ayudaClave').hidden = m !== 'crear';
+  $('iClave').autocomplete = m === 'crear' ? 'new-password' : 'current-password';
+  $('bIngresar').textContent = m === 'crear' ? 'Crear cuenta' : 'Ingresar';
+  $('iError').hidden = true; $('iOk').hidden = true;
+}
+$('modoIngreso').addEventListener('click', e => { const b = e.target.closest('button'); if (b) ponerModo(b.dataset.modo); });
+$('formIngreso').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('iError'), nombre = $('iNombre').value.trim(), mail = $('iMail').value.trim(), clave = $('iClave').value;
+  const falla = t => { err.textContent = t; err.hidden = false; };
+  err.hidden = true; $('iOk').hidden = true;
+  if (modoIngreso === 'crear' && !nombre) return falla('Escribí tu nombre.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return falla('Escribí un mail válido.');
+  if (!clave) return falla('Escribí la contraseña.');
+  if (modoIngreso === 'crear' && clave.length < 8) return falla('La contraseña tiene que tener al menos 8 caracteres.');
+  const b = $('bIngresar'); b.disabled = true;
+  try {
+    if (modoIngreso === 'crear'){
+      const r = await api.registrarse(nombre, mail, clave);
+      if (r.confirmar){ $('iOk').textContent = 'Listo: te mandamos un mail a ' + mail + '. Tocá el enlace para confirmar la cuenta y después ingresá.'; $('iOk').hidden = false; ponerModoSinBorrar('ingresar'); b.disabled = false; return; }
+    } else await api.ingresar(mail, clave);
+    $('iClave').value = '';
+    usuario = await api.sesion(); await entrar();
+  } catch (x) { falla(mensaje(x)); }
+  b.disabled = false;
+});
+function ponerModoSinBorrar(m){ const ok = $('iOk').textContent; ponerModo(m); $('iOk').textContent = ok; $('iOk').hidden = !ok; }
+$('bDemo').addEventListener('click', async () => {
+  try { sessionStorage.setItem('climcontrol_demo', '1'); } catch (e) {}
+  api = apiDemo(); usuario = await api.sesion(); await entrar();
+});
+async function salir(){
+  cerrarMenu();
+  try { await api.salir(); } catch (e) {}
+  try { sessionStorage.removeItem('climcontrol_demo'); } catch (e) {}
+  usuario = null; perfil = null; aulas = [];
+  api = supabaseListo ? apiSupabaseUnico() : null;
+  mostrarIngreso();
+}
+$('bSalir').onclick = salir; $('bSalirMenu').onclick = salir;
+let _sb = null;
+function apiSupabaseUnico(){ if (!_sb){ _sb = apiSupabase(); _sb.alSalir(() => { if (usuario && !api.demo) { usuario = null; mostrarIngreso('La sesión se cerró. Volvé a ingresar.'); } }); } return _sb; }
+
+async function entrar(){
+  $('pantallaIngreso').hidden = true; $('app').hidden = false;
+  $('chipDemo').hidden = !api.demo;
+  $('menuMail').textContent = usuario.email;
+  try {
+    [perfil, cfg, aulas] = await Promise.all([api.perfil(), api.config(), api.estadoAulas()]);
+  } catch (e) {
+    perfil = perfil || { nombre:'' };
+    avisoGlobal(mensaje(e));
+  }
+  pintarPerfilMenu();
+  if (!aulas.some(a => a.aula_id === aulaSel)) aulaSel = aulas[0]?.aula_id ?? null;
+  const v = location.hash.slice(1);
+  mostrarVista(VISTAS[v] ? v : 'inicio', true);
+}
+function avisoGlobal(txt){ const p = document.createElement('p'); p.className = 'aviso'; p.style.color = 'var(--bad)'; p.textContent = txt; $('principal').prepend(p); setTimeout(() => p.remove(), 12000); }
+function pintarPerfilMenu(){
+  const n = perfil?.nombre || usuario.email.split('@')[0];
+  $('menuNombre').textContent = n;
+  $('avatar').textContent = n.trim().split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+// =====================================================================
+// MENÚ HAMBURGUESA Y NAVEGACIÓN
+// =====================================================================
+function abrirMenu(){ $('cajon').classList.add('abierto'); $('velo').classList.add('abierto'); $('bMenu').setAttribute('aria-expanded', 'true'); $('principal').inert = true; $('cajon').querySelector('a[aria-current]')?.focus(); }
+function cerrarMenu(){ $('cajon').classList.remove('abierto'); $('velo').classList.remove('abierto'); $('bMenu').setAttribute('aria-expanded', 'false'); $('principal').inert = false; }
+$('bMenu').onclick = () => $('cajon').classList.contains('abierto') ? cerrarMenu() : abrirMenu();
+$('velo').onclick = cerrarMenu;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('cajon').classList.contains('abierto')){ cerrarMenu(); $('bMenu').focus(); } });
+$('cajon').addEventListener('click', e => { if (e.target.closest('a')) cerrarMenu(); });
+window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (usuario && VISTAS[v]) mostrarVista(v); });
+$('bTema').onclick = () => { const r = document.documentElement; const osc = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = osc ? 'light' : 'dark'; guardarLocal('tema', r.dataset.theme); };
+if (leerLocal('tema')) document.documentElement.dataset.theme = leerLocal('tema');
+
+let relojes = [];
+function cada(fn, ms){ fn(); relojes.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+function pararRelojes(){ relojes.forEach(clearInterval); relojes = []; }
+
+function mostrarVista(v, forzar){
+  if (v === vista && !forzar && !document.querySelector(`.vista[data-vista="${v}"]`).hidden) return;
+  vista = v;
+  document.querySelectorAll('main .vista[data-vista]').forEach(s => s.hidden = s.dataset.vista !== v);
+  document.querySelectorAll('.menu a').forEach(a => { if (a.dataset.vista === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $('tituloVista').textContent = VISTAS[v];
+  document.title = VISTAS[v] + ' · ClimControl';
+  if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
+  pararRelojes(); window.scrollTo(0, 0);
+  ({ inicio:abrirInicio, aulas:abrirAulas, consumos:abrirConsumos, consultas:abrirConsultas, perfil:abrirPerfil, configuracion:abrirConfig })[v]();
+}
+
+// =====================================================================
+// CÁLCULOS COMPARTIDOS
+// =====================================================================
+function conexion(a){
+  if (!a || !a.ultimo_contacto) return { clase:'', txt:'Esperando el dispositivo' };
+  const s = (Date.now() - new Date(a.ultimo_contacto)) / 1000;
+  return s < 60 ? { clase:'ok', txt:'En línea' } : { clase:'bad', txt:'Sin conexión ' + hace(a.ultimo_contacto) };
+}
+function sumarConsumo(filas){
+  const t = { hv:0, ha:0, hl:0, kv:0, ka:0, kl:0 };
+  for (const f of filas){ t.hv += +f.horas_ventilador; t.ha += +f.horas_aire; t.hl += +f.horas_luces; t.kv += +f.kwh_ventilador; t.ka += +f.kwh_aire; t.kl += +f.kwh_luces; }
+  t.k = t.kv + t.ka + t.kl; t.costo = t.k * cfg.precio_kwh;
+  return t;
+}
+const inicioDeHoy = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+async function cargarConsumoHoy(forzar){
+  if (!forzar && Date.now() - consumoHoy.ts < 6e4) return consumoHoy.filas;
+  try { consumoHoy = { ts:Date.now(), filas:await api.consumoPorDia(inicioDeHoy(), new Date(Date.now() + 6e4)) }; } catch (e) {}
+  return consumoHoy.filas;
+}
+async function refrescarAulas(){
+  try { aulas = await api.estadoAulas(); } catch (e) { return false; }
+  return true;
+}
+
+// =====================================================================
+// INICIO: el aula en tiempo real
+// =====================================================================
+function abrirInicio(){
+  cada(async () => { await refrescarAulas(); pintarSelector(); pintarVivo(); cargarEventos(); }, 5000);
+  cada(() => cargarGrafico(), 30000);
+  cada(async () => { await cargarConsumoHoy(); pintarConsumoHoy(); }, 60000);
+}
+function pintarSelector(){
+  const hay = aulas.length > 0;
+  $('inicioVacio').hidden = hay; $('inicioDatos').hidden = !hay; $('inicioSelector').hidden = !hay;
+  if (!hay) return;
+  if (!aulas.some(a => a.aula_id === aulaSel)) aulaSel = aulas[0].aula_id;
+  const html = aulas.map(a => `<option value="${a.aula_id}">${esc(a.nombre)}</option>`).join('');
+  if ($('selAula').innerHTML !== html) $('selAula').innerHTML = html;
+  $('selAula').value = aulaSel;
+}
+$('selAula').onchange = () => { aulaSel = +$('selAula').value; guardarLocal('aula', aulaSel); pintarVivo(); cargarEventos(); cargarGrafico(); pintarConsumoHoy(); };
+function pintarVivo(){
+  const a = aulas.find(x => x.aula_id === aulaSel); if (!a) return;
+  const cx = conexion(a);
+  $('conexChip').className = 'chip ' + cx.clase; $('conexTxt').textContent = cx.txt;
+  $('inicioEsperando').hidden = !!a.fecha_hora;
+  const tv = +cfg.temp_ventilador, ta = +cfg.temp_aire, pos = v => Math.max(0, Math.min(100, (v - 16) / 18 * 100)) + '%';
+  $('marcaVent').style.left = pos(tv); $('marcaVent').firstChild.textContent = grados(tv);
+  $('marcaAire').style.left = pos(ta); $('marcaAire').firstChild.textContent = grados(ta);
+  $('reglaVent').textContent = `Con gente, desde ${grados(tv)} y menos de ${grados(ta)}`;
+  $('reglaAire').textContent = `Con gente, desde ${grados(ta)}`;
+  const t = a.temperatura == null ? null : +a.temperatura;
+  if (t == null){
+    $('vTemp').textContent = '--'; $('aguja').hidden = true; $('zona').textContent = 'Sin dato'; $('zona').className = 'chip';
+    $('zonaTxt').textContent = a.fecha_hora ? 'El sensor no está dando la temperatura: revisá los cables del DHT11.' : 'Todavía no hay lecturas de esta aula.';
+  } else {
+    $('vTemp').innerHTML = nf1.format(t) + '<small> °C</small>';
+    $('aguja').hidden = false; $('aguja').style.left = pos(t);
+    let z, txt;
+    if (t < tv){ z = 'Confortable'; txt = `Menos de ${grados(tv)}: no hace falta enfriar.`; }
+    else if (t < ta){ z = 'Templado'; txt = `Entre ${grados(tv)} y ${grados(ta)}: con gente, se prende el ventilador.`; }
+    else { z = 'Caluroso'; txt = `${grados(ta)} o más: con gente, se prende el aire.`; }
+    $('zona').textContent = z; $('zona').className = 'chip' + (t >= ta ? ' bad' : t >= tv ? ' ac' : '');
+    $('zonaTxt').textContent = txt;
+  }
+  const h = a.humedad == null ? null : +a.humedad;
+  $('vHum').innerHTML = h == null ? '--' : Math.round(h) + '<small> %</small>';
+  $('nHum').textContent = h == null ? '--' : h < 40 ? 'Ambiente seco' : h > 65 ? 'Ambiente húmedo' : 'Rango normal';
+  if (a.hay_personas == null){ $('vPres').textContent = '--'; $('nPres').textContent = '--'; $('icoPres').className = 'ico'; }
+  else { $('vPres').textContent = a.hay_personas ? 'Hay gente' : 'Aula vacía'; $('icoPres').className = 'ico' + (a.hay_personas ? ' on' : ''); }
+  const eq = (id, ico, on) => { $(id).textContent = on == null ? '--' : on ? 'Prendido' : 'Apagado'; $(id).className = 'chip estado' + (on ? ' ok' : ''); $(ico).classList.toggle('on', !!on); };
+  eq('eVent', 'icoVent', a.ventilador); eq('eAire', 'icoAire', a.aire); eq('eLuces', 'icoLuces', a.luces);
+  $('ultimaLectura').textContent = a.fecha_hora ? 'Lectura de las ' + new Date(a.fecha_hora).toLocaleTimeString('es-AR',{hourCycle:'h23'}) : '';
+}
+function pintarConsumoHoy(){
+  const t = sumarConsumo(consumoHoy.filas.filter(f => +f.aula_id === aulaSel));
+  $('consumoHoy').textContent = consumoHoy.ts ? kwh(t.k) + ' · ' + pesos(t.costo) : '--';
+}
+const NOMBRE_EV = { ventilador:['Ventilador','i-fan'], aire:['Aire acondicionado','i-snow'], luces:['Luces','i-bulb'], presencia:['Presencia','i-users'] };
+async function cargarEventos(){
+  if (!aulaSel) return;
+  let ev; try { ev = await api.eventos(aulaSel, 8); } catch (e) { return; }
+  const txt = e => e.equipo === 'presencia' ? (e.encendido ? 'Entró gente' : 'El aula quedó vacía') : NOMBRE_EV[e.equipo][0] + (e.encendido ? ': se prendió' : ': se apagó');
+  $('listaEventos').innerHTML = ev.map(e => `<li><span class="ico${e.encendido ? ' on' : ''}"><svg class="ic"><use href="#${NOMBRE_EV[e.equipo][1]}"/></svg></span><span>${txt(e)}</span><span class="h">${new Date(e.fecha_hora).toDateString() === new Date().toDateString() ? hora(e.fecha_hora) : fechaHora(e.fecha_hora)}</span></li>`).join('') || '<li>Todavía no hay cambios.</li>';
+  const ultP = ev.find(e => e.equipo === 'presencia');
+  const a = aulas.find(x => x.aula_id === aulaSel);
+  if (a && a.hay_personas != null) $('nPres').textContent = ultP ? 'Desde las ' + hora(ultP.fecha_hora) : 'Sin cambios recientes';
+}
+let anchoPrevio = innerWidth;
+addEventListener('resize', () => { if (Math.abs(innerWidth - anchoPrevio) < 40) return; anchoPrevio = innerWidth; if (vista === 'inicio') cargarGrafico(); if (vista === 'consumos') cargarConsumos(); });
+$('rangoGrafico').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; horasGrafico = +b.dataset.h; [...$('rangoGrafico').children].forEach(x => x.classList.toggle('activo', x === b)); cargarGrafico(); });
+async function cargarGrafico(){
+  if (!aulaSel) return;
+  const desde = new Date(Date.now() - horasGrafico * 36e5), paso = { 1:30, 6:180, 24:600 }[horasGrafico];
+  let pts; try { pts = await api.grafico(aulaSel, desde, paso); } catch (e) { $('grafico').innerHTML = `<p class="vacio">${esc(mensaje(e))}</p>`; return; }
+  pts = pts.filter(p => p.temperatura != null).map(p => ({ t:+new Date(p.t), temp:+p.temperatura, hum:p.humedad == null ? null : +p.humedad, pres:!!p.hay_personas }));
+  if (pts.length < 2){ $('grafico').innerHTML = '<p class="vacio">El gráfico aparece con las primeras lecturas.</p>'; return; }
+  const W = Math.round(Math.min(900, Math.max(300, $('grafico').clientWidth || 900))), H = W < 600 ? 230 : 260, L = 36, R = 38, T = 14, B = 28, iw = W - L - R, ih = H - T - B;
+  const t0 = +desde, t1 = Date.now(), x = t => L + (t - t0) / (t1 - t0) * iw;
+  const tv = +cfg.temp_ventilador, ta = +cfg.temp_aire;
+  const tMin = Math.floor(Math.min(...pts.map(p => p.temp), tv) - 1), tMax = Math.ceil(Math.max(...pts.map(p => p.temp), ta) + 1);
+  const yT = v => T + (1 - (v - tMin) / (tMax - tMin)) * ih, yH = v => T + (1 - (v - 20) / 80) * ih;
+  let s = '', ini = null;
+  const anchoPaso = paso * 1e3;
+  pts.forEach((p, i) => { if (p.pres && ini === null) ini = p.t; const fin = !p.pres || i === pts.length - 1 || pts[i + 1].t - p.t > anchoPaso * 1.5;
+    if (ini !== null && fin){ const hasta = p.pres ? p.t + anchoPaso : p.t; s += `<rect class="g-pres" x="${x(ini)}" y="${T}" width="${Math.max(1, x(Math.min(hasta, t1)) - x(ini))}" height="${ih}"/>`; ini = null; } });
+  const pasoT = (tMax - tMin) > 8 ? 2 : 1;
+  for (let v = tMin; v <= tMax; v += pasoT) s += `<line class="g-grid" x1="${L}" x2="${W - R}" y1="${yT(v)}" y2="${yT(v)}"/><text class="g-eje" x="${L - 8}" y="${yT(v) + 4}" text-anchor="end">${v}°</text>`;
+  [20, 40, 60, 80, 100].forEach(v => { s += `<text class="g-eje" x="${W - R + 8}" y="${yH(v) + 4}">${v}%</text>`; });
+  [tv, ta].forEach(u => { if (u > tMin && u < tMax) s += `<line class="g-u" x1="${L}" x2="${W - R}" y1="${yT(u)}" y2="${yT(u)}"/><text class="g-ut" x="${L + 6}" y="${yT(u) - 5}">${grados(u)}</text>`; });
+  for (let i = 0; i <= 4; i++){ const t = t0 + (t1 - t0) * i / 4; s += `<text class="g-eje" x="${x(t)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${hora(t)}</text>`; }
+  // la línea se corta donde faltan datos (dispositivo apagado)
+  const tramos = []; let actual = [];
+  pts.forEach((p, i) => { if (i && p.t - pts[i - 1].t > anchoPaso * 2.5){ tramos.push(actual); actual = []; } actual.push(p); }); tramos.push(actual);
+  for (const tr of tramos){ if (tr.length < 2) continue;
+    const lt = tr.map(p => `${x(p.t).toFixed(1)},${yT(p.temp).toFixed(1)}`).join(' ');
+    s += `<polygon class="g-area" points="${x(tr[0].t).toFixed(1)},${T + ih} ${lt} ${x(tr[tr.length - 1].t).toFixed(1)},${T + ih}"/>`;
+    const ch = tr.filter(p => p.hum != null); if (ch.length > 1) s += `<polyline class="g-h" points="${ch.map(p => `${x(p.t).toFixed(1)},${yH(p.hum).toFixed(1)}`).join(' ')}"/>`;
+    s += `<polyline class="g-t" points="${lt}"/>`; }
+  const u = pts[pts.length - 1];
+  s += `<circle cx="${x(u.t)}" cy="${yT(u.temp)}" r="5" fill="var(--accent)" stroke="var(--bg)" stroke-width="2"/>`;
+  $('grafico').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperatura y humedad de las últimas ${horasGrafico} horas">${s}</svg>`;
+}
+
+// =====================================================================
+// AULAS
+// =====================================================================
+function abrirAulas(){
+  cada(async () => { await refrescarAulas(); pintarAulas(); }, 10000);
+  cada(async () => { await cargarConsumoHoy(); pintarAulas(); }, 60000);
+}
+function pintarAulas(){
+  const cont = $('listaAulas');
+  if (!aulas.length){
+    cont.innerHTML = `<div class="card" style="grid-column:1/-1"><h2 style="font-size:19px">Agregá tu primera aula</h2>
+      <ol class="pasos"><li>Tocá <b>Agregar aula</b> y ponele un nombre.</li><li>Copiá el <b>código</b> y la <b>clave</b> que te damos en el archivo <b>secretos.h</b> del programa de la ESP32, junto con el nombre y la clave de tu WiFi.</li><li>Subí el programa a la ESP32 con Arduino IDE y enchufala a cualquier cargador de 5 V.</li><li>En unos segundos el aula aparece <b>En línea</b>.</li></ol></div>`;
+    return;
+  }
+  cont.innerHTML = aulas.map(a => {
+    const cx = conexion(a), t = sumarConsumo(consumoHoy.filas.filter(f => +f.aula_id === a.aula_id));
+    const chip = (on, clase, txt) => `<span class="chip${on ? ' eq-on ' + clase : ''}">${txt}${on ? ' · prendido' : ''}</span>`;
+    const desconectada = cx.clase === 'bad';
+    const datos = a.fecha_hora
+      ? `${desconectada ? `<p class="nota">Último dato recibido: ${fechaHora(a.fecha_hora)}</p>` : ''}<div class="aula-datos${desconectada ? ' viejo' : ''}"><span><svg class="ic"><use href="#i-thermo"/></svg>${a.temperatura == null ? '--' : nf1.format(a.temperatura) + ' °C'}</span><span><svg class="ic"><use href="#i-drop"/></svg>${a.humedad == null ? '--' : Math.round(a.humedad) + ' %'}</span><span><svg class="ic"><use href="#i-users"/></svg>${a.hay_personas ? 'Hay gente' : 'Vacía'}</span></div>
+         <div class="chips${desconectada ? ' viejo' : ''}">${chip(a.ventilador, 'vent', 'Ventilador')}${chip(a.aire, 'aire', 'Aire')}${chip(a.luces, 'luces', 'Luces')}</div>`
+      : '<p class="nota">Todavía no recibió datos. Cargá el código y la clave en la ESP32.</p>';
+    return `<article class="card aula" data-id="${a.aula_id}">
+      <div class="aula-cab"><h3>${esc(a.nombre)}</h3><span class="chip ${cx.clase}"><span class="dot"></span>${esc(cx.txt)}</span></div>
+      ${datos}
+      <div class="aula-consumo">Hoy: <b>${consumoHoy.ts ? kwh(t.k) : '--'}</b> · <b>${consumoHoy.ts ? pesos(t.costo) : '--'}</b> estimado</div>
+      <div class="aula-acc">
+        <button class="boton chico" data-acc="ver">Ver en vivo</button>
+        <button class="boton chico sec" data-acc="disp">Dispositivo</button>
+        <button class="boton chico sec" data-acc="renombrar">Renombrar</button>
+        <button class="boton chico sec" data-acc="borrar" style="color:var(--bad)">Borrar</button>
+      </div></article>`;
+  }).join('');
+}
+$('bNuevaAula').onclick = () => { $('formAula').hidden = false; $('aulaError').hidden = true; $('nuevaAula').value = ''; $('nuevaAula').focus(); };
+$('bCancelarAula').onclick = () => { $('formAula').hidden = true; };
+$('formAula').addEventListener('submit', async e => {
+  e.preventDefault();
+  const n = $('nuevaAula').value.trim(), err = $('aulaError');
+  err.hidden = true;
+  if (!n){ err.textContent = 'Escribí el nombre del aula.'; err.hidden = false; return; }
+  const b = e.submitter || $('formAula').querySelector('[type=submit]'); b.disabled = true;
+  try {
+    const r = await api.crearAula(n);
+    $('formAula').hidden = true;
+    await refrescarAulas(); pintarAulas();
+    aulaSel = r.aula_id; guardarLocal('aula', aulaSel);
+    await mostrarCredenciales(n, r.codigo, r.clave, true);
+  } catch (x) { err.textContent = mensaje(x); err.hidden = false; }
+  b.disabled = false;
+});
+function textoSecretos(codigo, clave){
+  return `// secretos.h  (en la carpeta del programa ClimControl_WiFi)
+#define WIFI_NOMBRE        "nombre de tu red WiFi"
+#define WIFI_CLAVE         "clave de tu red WiFi"
+
+#define SUPABASE_URL       "${api.url}"
+#define SUPABASE_CLAVE     "${api.clave}"
+
+#define DISPOSITIVO_CODIGO "${codigo}"
+#define DISPOSITIVO_CLAVE  "${clave}"`;
+}
+async function mostrarCredenciales(nombre, codigo, clave, nueva){
+  const html = `<p class="nota">${nueva ? 'El aula ya está creada.' : 'La clave anterior dejó de funcionar.'} Cargá estos datos en la ESP32 de <b>${esc(nombre)}</b>.</p>
+    <div class="cred"><span>Código</span><code>${esc(codigo)}</code><span>Clave</span><code>${esc(clave)}</code></div>
+    <p class="aviso"><b>Copiala ahora:</b> la clave se muestra una sola vez. Si la perdés, generás otra desde Aulas → Dispositivo.</p>
+    <pre class="codigo" id="txtSecretos">${esc(textoSecretos(codigo, clave))}</pre>
+    <p class="nota">Pegalo en el archivo <b>secretos.h</b>, completá tu WiFi (tiene que ser de 2,4 GHz) y subí el programa con Arduino IDE.</p>`;
+  const r = await dialogo({ titulo:'Datos del dispositivo', html, botones:[{ txt:'Copiar secretos.h', clase:'sec', valor:'copiar' }, { txt:'Listo', valor:'ok' }] });
+  if (r === 'copiar'){
+    try { await navigator.clipboard.writeText(textoSecretos(codigo, clave)); } catch (e) {}
+    return mostrarCredencialesCopiadas(nombre, codigo, clave);
+  }
+}
+async function mostrarCredencialesCopiadas(nombre, codigo, clave){
+  await dialogo({ titulo:'Copiado', html:`<p class="nota">Ya podés pegarlo en <b>secretos.h</b>. Por las dudas, acá siguen los datos:</p><div class="cred"><span>Código</span><code>${esc(codigo)}</code><span>Clave</span><code>${esc(clave)}</code></div>`, botones:[{ txt:'Listo', valor:'ok' }] });
+}
+$('listaAulas').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-acc]'); if (!b) return;
+  const id = +b.closest('[data-id]').dataset.id, a = aulas.find(x => x.aula_id === id); if (!a) return;
+  const acc = b.dataset.acc;
+  if (acc === 'ver'){ aulaSel = id; guardarLocal('aula', id); location.hash = 'inicio'; return; }
+  if (acc === 'disp'){
+    const cx = conexion(a);
+    const r = await dialogo({ titulo:'Dispositivo de ' + a.nombre, html:`<div class="cred"><span>Código</span><code>${esc(a.codigo || '--')}</code><span>Estado</span><b>${esc(cx.txt)}</b><span>Último dato</span><b>${a.ultimo_contacto ? fechaHora(a.ultimo_contacto) : 'Nunca'}</b></div>
+      <p class="nota">La clave no se puede volver a ver porque se guarda cifrada. Si la perdiste o cambiás de ESP32, generá una nueva: la anterior deja de funcionar al instante.</p>`,
+      botones:[{ txt:'Cerrar', clase:'sec', valor:null }, { txt:'Generar clave nueva', valor:'nueva' }] });
+    if (r === 'nueva'){ try { const c = await api.nuevaClave(id); await mostrarCredenciales(a.nombre, c.codigo, c.clave, false); } catch (x) { avisoGlobal(mensaje(x)); } }
+    return;
+  }
+  if (acc === 'renombrar'){
+    const r = await dialogo({ titulo:'Renombrar aula', html:`<div class="campo"><label for="dlgNombre">Nombre nuevo</label><input id="dlgNombre" maxlength="60" value="${esc(a.nombre)}"></div><p class="error" id="dlgErr" hidden></p>`,
+      botones:[{ txt:'Cancelar', clase:'sec', valor:null }, { txt:'Guardar', valor:'ok', submit:true }] });
+    if (r !== 'ok') return;
+    const n = (document.getElementById('dlgNombre')?.value || '').trim();
+    if (!n || n === a.nombre) return;
+    try { await api.renombrarAula(id, n); await refrescarAulas(); pintarAulas(); } catch (x) { avisoGlobal(mensaje(x)); }
+    return;
+  }
+  if (acc === 'borrar'){
+    const r = await dialogo({ titulo:'¿Borrar ' + a.nombre + '?', html:'<p class="nota">Se borran también su dispositivo, sus lecturas y sus eventos. No se puede deshacer.</p>',
+      botones:[{ txt:'Cancelar', clase:'sec', valor:null }, { txt:'Borrar el aula', clase:'peligro', valor:'si' }] });
+    if (r !== 'si') return;
+    try { await api.borrarAula(id); await refrescarAulas(); pintarAulas(); } catch (x) { avisoGlobal(mensaje(x)); }
+  }
+});
+
+// =====================================================================
+// CONSUMOS
+// =====================================================================
+function abrirConsumos(){
+  $('filtroAula').innerHTML = '<option value="todas">Todas las aulas</option>' + aulas.map(a => `<option value="${a.aula_id}">${esc(a.nombre)}</option>`).join('');
+  $('filtroAula').value = aulas.some(a => String(a.aula_id) === filtroAula) ? filtroAula : 'todas';
+  cada(cargarConsumos, 60000);
+}
+$('periodo').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; periodo = b.dataset.p; [...$('periodo').children].forEach(x => x.classList.toggle('activo', x === b)); cargarConsumos(); });
+$('filtroAula').onchange = () => { filtroAula = $('filtroAula').value; cargarConsumos(); };
+function rangoPeriodo(){
+  const hoy = inicioDeHoy(), hasta = new Date(Date.now() + 6e4);
+  if (periodo === 'hoy') return { desde:hoy, hasta, dias:1 };
+  if (periodo === 'mes') return { desde:new Date(hoy.getFullYear(), hoy.getMonth(), 1), hasta, dias:hoy.getDate() };
+  const n = +periodo; return { desde:new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - n + 1), hasta, dias:n };
+}
+async function cargarConsumos(){
+  const { desde, hasta, dias } = rangoPeriodo();
+  let filas;
+  try { filas = await api.consumoPorDia(desde, hasta); }
+  catch (e) { $('porAula').innerHTML = `<p class="error">${esc(mensaje(e))}</p>`; return; }
+  const elegidas = filtroAula === 'todas' ? filas : filas.filter(f => String(f.aula_id) === filtroAula);
+  const t = sumarConsumo(elegidas);
+  $('kKwh').textContent = kwh(t.k); $('kKwhN').textContent = periodo === 'hoy' ? 'Desde las 0:00' : 'En ' + dias + (dias === 1 ? ' día' : ' días');
+  $('kCosto').textContent = pesos(t.costo); $('kCostoN').textContent = 'A ' + pesos(cfg.precio_kwh) + ' el kWh';
+  // proyección: lo que va del mes, llevado a todo el mes
+  const hoy = new Date(), diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  const transcurrido = (hoy - new Date(hoy.getFullYear(), hoy.getMonth(), 1)) / 864e5;
+  if (periodo === 'mes' && transcurrido > 0.25){ $('kProyT').textContent = 'Proyección del mes'; $('kProy').textContent = pesos(t.costo / transcurrido * diasMes); $('kProyN').textContent = 'Si sigue igual hasta el día ' + diasMes; }
+  else { const porDia = periodo === 'hoy' ? t.costo / Math.max(transcurridoHoy(), 0.05) : t.costo / dias; $('kProyT').textContent = 'Promedio por día'; $('kProy').textContent = pesos(porDia); $('kProyN').textContent = periodo === 'hoy' ? 'Al ritmo de hoy' : 'En este período'; }
+  const eqs = [['Aire', t.ka, t.ha, 'aire'], ['Ventilador', t.kv, t.hv, 'vent'], ['Luces', t.kl, t.hl, 'luces']];
+  const mayor = eqs.slice().sort((x, y) => y[1] - x[1])[0];
+  $('kMax').textContent = t.k > 0 ? mayor[0] : '--'; $('kMaxN').textContent = t.k > 0 ? Math.round(mayor[1] / t.k * 100) + ' % del total' : 'Sin consumo todavía';
+  const maxEq = Math.max(...eqs.map(e => e[1]), 1e-9);
+  $('porEquipo').innerHTML = eqs.map(([n, k, h, c]) => `<div class="barra-eq"><div class="fila"><b>${n}</b><span>${horas(h)} prendido · ${kwh(k)} · ${pesos(k * cfg.precio_kwh)}</span></div>
+    <div class="pista" role="img" aria-label="${n}: ${kwh(k)}"><i style="width:${(k / maxEq * 100).toFixed(1)}%;background:var(--c-${c})"></i></div></div>`).join('');
+  pintarDias(elegidas, desde, dias);
+  // por aula
+  const lista = (filtroAula === 'todas' ? aulas : aulas.filter(a => String(a.aula_id) === filtroAula)).map(a => ({ a, t:sumarConsumo(filas.filter(f => +f.aula_id === a.aula_id)) }));
+  const maxA = Math.max(...lista.map(x => x.t.k), 1e-9);
+  $('porAulaRes').textContent = lista.length + (lista.length === 1 ? ' aula' : ' aulas');
+  $('porAula').innerHTML = lista.length ? `<table class="tabla"><thead><tr><th>Aula</th><th class="num">Aire</th><th class="num">Ventilador</th><th class="num">Luces</th><th class="num">Energía</th><th class="num">Costo</th><th style="width:22%">Reparto</th></tr></thead><tbody>${
+    lista.sort((x, y) => y.t.k - x.t.k).map(({ a, t }) => `<tr><td>${esc(a.nombre)}</td><td class="num">${horas(t.ha)}</td><td class="num">${horas(t.hv)}</td><td class="num">${horas(t.hl)}</td><td class="num"><b>${kwh(t.k)}</b></td><td class="num"><b>${pesos(t.costo)}</b></td>
+      <td><div class="pista" style="width:${Math.max(t.k / maxA * 100, 2).toFixed(1)}%" role="img" aria-label="Aire ${kwh(t.ka)}, ventilador ${kwh(t.kv)}, luces ${kwh(t.kl)}">${t.k > 0 ? `<i style="width:${t.ka / t.k * 100}%;background:var(--c-aire)"></i><i style="width:${t.kv / t.k * 100}%;background:var(--c-vent)"></i><i style="width:${t.kl / t.k * 100}%;background:var(--c-luces)"></i>` : ''}</div></td></tr>`).join('')}</tbody></table>`
+    : '<p class="vacio">No hay aulas todavía.</p>';
+  pintarComo();
+}
+const transcurridoHoy = () => (Date.now() - inicioDeHoy()) / 864e5;
+function pintarDias(filas, desde, dias){
+  const dl = []; for (let i = 0; i < dias; i++){ const d = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate() + i); dl.push(isoDia(d)); }
+  if (dias < 2){ $('graficoDias').innerHTML = '<p class="vacio">Elegí 7 días, este mes o 30 días para ver el consumo de cada día.</p>'; return; }
+  const por = new Map(dl.map(d => [d, { a:0, v:0, l:0 }]));
+  for (const f of filas){ const d = String(f.dia).slice(0, 10), x = por.get(d); if (x){ x.a += +f.kwh_aire; x.v += +f.kwh_ventilador; x.l += +f.kwh_luces; } }
+  const W = Math.round(Math.min(900, Math.max(300, $('graficoDias').clientWidth || 520))), H = 250, L = 40, R = 6, T = 22, B = 26, iw = W - L - R, ih = H - T - B;
+  const max = Math.max(...[...por.values()].map(x => x.a + x.v + x.l), 0.01);
+  const esc2 = (() => { const p = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]; const crudo = max / 4; return p.find(v => v >= crudo) || crudo; })();
+  const top = Math.ceil(max / esc2) * esc2, y = v => T + ih - v / top * ih, bw = iw / dl.length;
+  let s = '';
+  for (let v = 0; v <= top + 1e-9; v += esc2) s += `<line class="g-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="g-eje" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${nf1.format(v).replace(/,0$/, '')}</text>`;
+  s += `<text class="g-eje" x="2" y="10">kWh</text>`;
+  dl.forEach((d, i) => { const x = por.get(d), x0 = L + i * bw + bw * .18, w = bw * .64; let base = 0;
+    for (const [k, c] of [['a', 'aire'], ['v', 'vent'], ['l', 'luces']]){ const v = x[k]; if (v > 0){ s += `<rect x="${x0.toFixed(1)}" y="${y(base + v).toFixed(1)}" width="${w.toFixed(1)}" height="${(y(base) - y(base + v)).toFixed(1)}" fill="var(--c-${c})" rx="2"><title>${d.slice(8)}/${d.slice(5, 7)}: ${kwh(v)}</title></rect>`; base += v; } }
+    const salto = Math.ceil(dl.length / Math.max(3, Math.floor(iw / 48))); if (i % salto === 0) s += `<text class="g-eje" x="${(L + i * bw + bw / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${+d.slice(8)}/${+d.slice(5, 7)}</text>`; });
+  $('graficoDias').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Consumo de cada día, en kWh, separado por equipo">${s}</svg>`;
+}
+function pintarComo(){
+  $('comoSeCalcula').innerHTML = `
+    <p>La ESP32 manda cada 10 segundos qué equipos están prendidos. Sumamos el tiempo que estuvo prendido cada uno y lo multiplicamos por su potencia: <b>energía (kWh) = potencia (kW) × horas</b>. El costo es <b>energía × precio del kWh</b>.</p>
+    <p><b>Ventilador:</b> ${nf0.format(cfg.potencia_ventilador_w)} W fijos. <b>Luces:</b> ${nf0.format(cfg.potencia_luces_w)} W fijos.</p>
+    <p><b>Aire acondicionado:</b> depende de la temperatura del aula en ese momento: menos de ${grados(cfg.aire_limite_1)}, ${nf0.format(cfg.aire_w_bajo)} W; de ${grados(cfg.aire_limite_1)} a ${grados(cfg.aire_limite_2)}, ${nf0.format(cfg.aire_w_medio)} W; ${grados(cfg.aire_limite_2)} o más, ${nf0.format(cfg.aire_w_alto)} W.</p>
+    <p><b>Precio:</b> ${pesos(cfg.precio_kwh)} por kWh, un valor de referencia para Córdoba (EPEC). Para que sea exacto, cargá el de tu factura en Configuración.</p>
+    <p>Si el dispositivo se desconecta, ese tiempo no se cuenta. Es una estimación: el consumo real depende de cada equipo.</p>`;
+}
+
+// =====================================================================
+// CONSULTAS (vistas guardadas en Supabase)
+// =====================================================================
+const CONSULTAS = [
+  { vista:'consulta_promedios_por_aula', nombre:'1 · Promedios por aula', desc:'Temperatura y humedad promedio de cada aula, con la cantidad de lecturas. Usa LEFT JOIN para que aparezcan también las aulas sin lecturas.',
+    sql:`select a.nombre as aula, count(l.id) as lecturas,
+       round(avg(l.temperatura), 1) as temperatura_promedio,
+       round(avg(l.humedad), 1) as humedad_promedio
+  from aulas a
+  left join lecturas l on l.aula_id = a.id
+ group by a.id, a.nombre
+ order by a.nombre;` },
+  { vista:'consulta_calor_con_gente', nombre:'2 · Calor con gente', desc:'Las últimas 50 lecturas con gente en el aula y temperatura desde la del ventilador (la de tu configuración).',
+    sql:`select a.nombre as aula, l.fecha_hora, l.temperatura, l.humedad
+  from lecturas l
+  join aulas a on a.id = l.aula_id
+  join configuracion c on c.usuario_id = a.usuario_id
+ where l.hay_personas and l.temperatura >= c.temp_ventilador
+ order by l.fecha_hora desc
+ limit 50;` },
+  { vista:'consulta_encendidos_por_equipo', nombre:'3 · Encendidos por equipo', desc:'Cuántas veces se prendió cada equipo en cada aula y cuándo fue la última.',
+    sql:`select a.nombre as aula, e.equipo, count(*) as veces_que_se_prendio,
+       max(e.fecha_hora) as ultima_vez
+  from eventos e
+  join aulas a on a.id = e.aula_id
+ where e.encendido and e.equipo <> 'presencia'
+ group by a.nombre, e.equipo
+ order by a.nombre, e.equipo;` },
+  { vista:'consulta_aulas_y_dispositivos', nombre:'4 · Aulas y dispositivos', desc:'Cada aula con su responsable (de la tabla perfiles) y su dispositivo: código, último contacto y si está en línea.',
+    sql:`select a.nombre as aula, p.nombre as responsable, d.codigo as dispositivo,
+       d.ultimo_contacto,
+       coalesce(d.ultimo_contacto > now() - interval '1 minute', false) as en_linea
+  from aulas a
+  join perfiles p on p.id = a.usuario_id
+  left join dispositivos d on d.aula_id = a.id
+ order by a.nombre;` },
+  { vista:'consulta_ultimas_lecturas', nombre:'5 · Últimas lecturas', desc:'Las 10 lecturas más recientes de todas tus aulas.',
+    sql:`select a.nombre as aula, l.fecha_hora, l.temperatura, l.humedad,
+       l.hay_personas, l.ventilador, l.aire, l.luces
+  from lecturas l
+  join aulas a on a.id = l.aula_id
+ order by l.fecha_hora desc
+ limit 10;` },
+];
+function abrirConsultas(){
+  if (!$('selConsulta').options.length) $('selConsulta').innerHTML = CONSULTAS.map((c, i) => `<option value="${i}">${esc(c.nombre)}</option>`).join('');
   mostrarConsulta();
-  (async()=>{
-    await detectarBase;
-    if(hayBase && token.leer()){
-      try{ const s=await api('sesion'); perfil={nombre:s.nombre,rol:s.rol}; return entrar(); }catch(e){ token.guardar(null); }
-    }
-    else if(!hayBase && recordar.leer()) return entrar();
-    $('lUsuario').focus(); pintarTodo();
-  })();
+}
+function mostrarConsulta(){
+  const c = CONSULTAS[+$('selConsulta').value || 0];
+  $('consultaDesc').textContent = c.desc; $('consultaSql').textContent = c.sql;
+  $('consultaResultado').innerHTML = ''; $('consultaResumen').textContent = ''; $('consultaError').hidden = true;
+}
+$('selConsulta').onchange = mostrarConsulta;
+const COLUMNAS = { aula:'Aula', lecturas:'Lecturas', temperatura_promedio:'Temp. promedio', humedad_promedio:'Humedad promedio', fecha_hora:'Fecha y hora', temperatura:'Temperatura', humedad:'Humedad',
+  equipo:'Equipo', veces_que_se_prendio:'Veces que se prendió', ultima_vez:'Última vez', responsable:'Responsable', dispositivo:'Dispositivo', ultimo_contacto:'Último contacto', en_linea:'En línea',
+  hay_personas:'Gente', ventilador:'Ventilador', aire:'Aire', luces:'Luces' };
+const valor = (k, v) => v === true ? 'Sí' : v === false ? 'No' : v == null ? '—' : /fecha|ultima_vez|contacto/.test(k) ? fechaHora(v) : typeof v === 'number' || /^-?\d+(\.\d+)?$/.test(v) ? (String(v).includes('.') ? nf1.format(+v) : String(v)) : v;
+$('bConsultar').onclick = async () => {
+  const c = CONSULTAS[+$('selConsulta').value || 0], b = $('bConsultar');
+  b.disabled = true; $('consultaError').hidden = true; $('consultaResumen').textContent = 'Consultando…';
+  try {
+    const filas = await api.consulta(c.vista);
+    if (!filas.length) $('consultaResultado').innerHTML = '<p class="vacio">La consulta no devolvió datos.</p>';
+    else { const cols = Object.keys(filas[0]);
+      $('consultaResultado').innerHTML = `<table class="tabla"><thead><tr>${cols.map(k => `<th>${esc(COLUMNAS[k] || k)}</th>`).join('')}</tr></thead><tbody>${filas.map(f => `<tr>${cols.map(k => `<td>${esc(valor(k, f[k]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`; }
+    $('consultaResumen').textContent = filas.length + (filas.length === 1 ? ' fila' : ' filas') + ' · consultado a las ' + new Date().toLocaleTimeString('es-AR',{hourCycle:'h23'});
+  } catch (x) { $('consultaError').textContent = mensaje(x); $('consultaError').hidden = false; $('consultaResumen').textContent = ''; }
+  b.disabled = false;
+};
+
+// =====================================================================
+// PERFIL
+// =====================================================================
+function abrirPerfil(){
+  $('pNombre').value = perfil?.nombre || ''; $('pMail').value = usuario.email; $('pAulas').value = aulas.length;
+  $('pCreada').textContent = perfil?.creado_en ? fecha(perfil.creado_en) : '--';
+  $('perfilEstado').textContent = ''; $('claveEstado').textContent = '';
+}
+const estado = (id, txt, mal) => { const el = $(id); el.textContent = txt; el.className = mal ? 'error' : 'ok-txt'; };
+$('formPerfil').addEventListener('submit', async e => {
+  e.preventDefault();
+  const n = $('pNombre').value.trim();
+  if (!n) return estado('perfilEstado', 'Escribí tu nombre.', true);
+  try { await api.guardarNombre(n); perfil.nombre = n; pintarPerfilMenu(); estado('perfilEstado', 'Guardado.'); } catch (x) { estado('perfilEstado', mensaje(x), true); }
+});
+$('formClave').addEventListener('submit', async e => {
+  e.preventDefault();
+  const c1 = $('pClave').value, c2 = $('pClave2').value;
+  if (c1.length < 8) return estado('claveEstado', 'La contraseña tiene que tener al menos 8 caracteres.', true);
+  if (c1 !== c2) return estado('claveEstado', 'Las dos contraseñas no coinciden.', true);
+  try { await api.cambiarClave(c1); $('pClave').value = ''; $('pClave2').value = ''; estado('claveEstado', 'Listo: la contraseña cambió.'); } catch (x) { estado('claveEstado', mensaje(x), true); }
+});
+
+// =====================================================================
+// CONFIGURACIÓN
+// =====================================================================
+const CAMPOS = { cVent:'temp_ventilador', cAire:'temp_aire', cMin:'minutos_sin_movimiento', cPrecio:'precio_kwh', cPotVent:'potencia_ventilador_w', cPotLuces:'potencia_luces_w',
+  cLim1:'aire_limite_1', cLim2:'aire_limite_2', cWBajo:'aire_w_bajo', cWMedio:'aire_w_medio', cWAlto:'aire_w_alto' };
+function abrirConfig(){ llenarConfig(cfg); $('configEstado').textContent = ''; $('configError').hidden = true; }
+function llenarConfig(c){ for (const [id, k] of Object.entries(CAMPOS)) $(id).value = +c[k]; actualizarResumen(); }
+function leerConfig(){ const c = {}; for (const [id, k] of Object.entries(CAMPOS)) c[k] = $(id).value === '' ? NaN : +$(id).value; return c; }
+function validarConfig(c){
+  const fuera = (v, a, b) => !Number.isFinite(v) || v < a || v > b;
+  if (fuera(c.temp_ventilador, 15, 40) || fuera(c.temp_aire, 15, 40)) return 'Las temperaturas tienen que estar entre 15 y 40 °C.';
+  if (c.temp_aire <= c.temp_ventilador) return 'El aire tiene que arrancar a una temperatura más alta que el ventilador.';
+  if (fuera(c.minutos_sin_movimiento, 0, 60) || !Number.isInteger(c.minutos_sin_movimiento)) return 'Los minutos sin movimiento van de 0 a 60, sin decimales.';
+  if (fuera(c.precio_kwh, 0, 100000)) return 'Revisá el precio del kWh.';
+  for (const k of ['potencia_ventilador_w', 'potencia_luces_w', 'aire_w_bajo', 'aire_w_medio', 'aire_w_alto']) if (fuera(c[k], 0, 20000) || !Number.isInteger(c[k])) return 'Las potencias van de 0 a 20.000 W, sin decimales.';
+  if (fuera(c.aire_limite_1, 15, 50) || fuera(c.aire_limite_2, 15, 50) || c.aire_limite_2 <= c.aire_limite_1) return 'Los rangos del aire tienen que ir de menor a mayor (entre 15 y 50 °C).';
+  return null;
+}
+function actualizarResumen(){
+  const c = leerConfig();
+  $('rtMedio').textContent = (Number.isFinite(c.aire_limite_1) ? 'Desde ' + grados(c.aire_limite_1) : 'Desde ese valor') + ' y menos de';
+  $('rtAlto').textContent = Number.isFinite(c.aire_limite_2) ? 'Desde ' + grados(c.aire_limite_2) + ' en adelante' : 'Desde ese valor en adelante';
+  const error = validarConfig(c);
+  $('resumenReglas').innerHTML = error ? esc(error) :
+    `Con gente en el aula: con menos de <b>${grados(c.temp_ventilador)}</b> no se prende nada; de <b>${grados(c.temp_ventilador)}</b> a menos de <b>${grados(c.temp_aire)}</b>, el ventilador; desde <b>${grados(c.temp_aire)}</b>, el aire (y el ventilador se apaga). `
+    + (c.minutos_sin_movimiento === 0 ? 'Si el PIR deja de detectar movimiento, se apaga todo al instante.' : `Si pasan <b>${c.minutos_sin_movimiento} min</b> sin movimiento, el aula se considera vacía y se apaga todo.`);
+}
+$('formConfig').addEventListener('input', () => { actualizarResumen(); $('configEstado').textContent = ''; });
+$('bFabrica').onclick = () => { llenarConfig(VALORES_DE_FABRICA); estado('configEstado', 'Cargados los valores de fábrica: tocá Guardar cambios para aplicarlos.'); $('configEstado').className = 'nota'; };
+$('formConfig').addEventListener('submit', async e => {
+  e.preventDefault();
+  const c = leerConfig(), err = $('configError'), error = validarConfig(c);
+  err.hidden = true;
+  if (error){ err.textContent = error; err.hidden = false; return; }
+  try { cfg = await api.guardarConfig(c); llenarConfig(cfg); consumoHoy.ts = 0; estado('configEstado', 'Guardado. La ESP32 lo toma en menos de 10 segundos.'); }
+  catch (x) { err.textContent = mensaje(x); err.hidden = false; }
+});
+
+// =====================================================================
+// ARRANQUE
+// =====================================================================
+(async () => {
+  let demo = false; try { demo = sessionStorage.getItem('climcontrol_demo') === '1'; } catch (e) {}
+  if (demo) api = apiDemo();
+  else if (supabaseListo) api = apiSupabaseUnico();
+  if (api){
+    try { usuario = await api.sesion(); } catch (e) { usuario = null; }
+    if (usuario) return entrar();
+  }
+  // Volviendo del mail de confirmación con un error (enlace vencido, etc.)
+  const p = new URLSearchParams(location.hash.slice(1));
+  const errMail = p.get('error_description');
+  if (errMail) history.replaceState(null, '', location.pathname);
+  mostrarIngreso(errMail ? 'El enlace del mail no sirvió (' + errMail + '). Probá ingresar o pedí uno nuevo creando la cuenta otra vez.' : null);
+  ponerModo('ingresar');
+})();
 })();
 </script>
 </body>

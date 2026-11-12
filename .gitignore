@@ -1,0 +1,7 @@
+# Datos privados de cada ESP32 (WiFi y clave del dispositivo): nunca a GitHub
+ClimControl_WiFi/secretos.h
+
+# Base de Access de la versión anterior (tiene contraseñas cifradas) y archivos de trabajo
+*.accdb
+*.laccdb
+.claude/
