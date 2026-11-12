@@ -200,6 +200,7 @@ details.como b{color:var(--text)}
 /* Consultas */
 .consulta-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:14px 0 4px}
 .consulta-form .campo{flex:1 1 280px;max-width:420px}
+.consulta-form .campo-aula{flex:1 1 200px;max-width:300px}
 details.sql{margin-top:12px}
 details.sql summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14px}
 pre.codigo{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius:12px;padding:12px 14px;overflow:auto;margin:8px 0 0;white-space:pre;color:var(--text)}
@@ -210,7 +211,9 @@ pre.codigo{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius
 .unidad input{padding-right:46px}
 .unidad span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
 .rangos{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px 12px;align-items:center;margin-top:12px}
-.rangos .rt{font-size:14px;color:var(--muted)}
+.rangos .rt{font-size:14.5px;color:var(--text)}
+.rangos .rh{font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.sub-config{font-size:15px;margin:20px 0 4px}
 .acciones{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
 .resumen-reglas{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--surface-2);font-size:14.5px}
 
@@ -225,7 +228,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
 .cred code{font:600 15px var(--mono);overflow-wrap:anywhere}
 
 @media (max-width:860px){.vivo,.g2{grid-template-columns:1fr}.lado{grid-template-columns:repeat(2,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
-@media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:84px}.kpis{grid-template-columns:1fr 1fr}.kpi .v{font-size:24px}.card{padding:18px}.rangos{grid-template-columns:1fr 1fr}.rangos .rt{grid-column:1/-1}}
+@media (max-width:520px){.lado{grid-template-columns:1fr}.temp .v{font-size:84px}.kpis{grid-template-columns:1fr 1fr}.kpi .v{font-size:24px}.card{padding:18px}.rangos{grid-template-columns:1fr 1fr}.rangos .rt{grid-column:1/-1}.rangos .rh0{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -411,6 +414,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
       <div class="card">
         <div class="consulta-form">
           <div class="campo"><label for="selConsulta">Consulta</label><select id="selConsulta"></select></div>
+          <div class="campo campo-aula"><label for="selConsultaAula">Aula</label><select id="selConsultaAula"></select></div>
           <button class="boton" id="bConsultar">Ejecutar consulta</button>
         </div>
         <p class="nota" id="consultaDesc"></p>
@@ -450,7 +454,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
 
     <!-- ---------- CONFIGURACIÓN ---------- -->
     <section class="vista" data-vista="configuracion" hidden>
-      <div class="cab-vista"><div><h1>Configuración</h1><p>Vale para todas tus aulas. La ESP32 toma los cambios en menos de 10 segundos.</p></div></div>
+      <div class="cab-vista"><div><h1>Configuración</h1><p>Se aplica a <b id="configAulas">todas tus aulas</b>. La ESP32 de cada aula toma los cambios en menos de 10 segundos.</p></div></div>
       <form class="card" id="formConfig" novalidate>
         <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Cuándo se prende cada equipo</h2></div>
         <div class="form-grid">
@@ -467,11 +471,13 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
           <div class="campo"><label for="cPotVent">Ventiladores del aula</label><div class="unidad"><input id="cPotVent" type="number" step="5" min="0" inputmode="numeric"><span>W</span></div><span class="ayuda">De fábrica: 2 ventiladores de techo de 75 W.</span></div>
           <div class="campo"><label for="cPotLuces">Luces del aula</label><div class="unidad"><input id="cPotLuces" type="number" step="5" min="0" inputmode="numeric"><span>W</span></div><span class="ayuda">De fábrica: 10 tubos LED de 18 W.</span></div>
         </div>
-        <p class="nota" style="margin-top:16px"><b style="color:var(--text)">Aire acondicionado:</b> gasta más cuanto más calor hace en el aula. De fábrica, un split de 4500 frigorías clase A.</p>
+        <h3 class="sub-config">Cuánto gasta el aire acondicionado</h3>
+        <p class="nota">Cuanto más calor hace en el aula, más trabaja el aire y más gasta. Estos números <b style="color:var(--text)">solo se usan para calcular el gasto</b> en Consumos: no cambian cuándo se prende. De fábrica: un split de 4500 frigorías clase A.</p>
         <div class="rangos">
+          <span class="rh rh0"></span><span class="rh">Temperatura del aula</span><span class="rh">Consumo del aire</span>
           <span class="rt">Menos de</span><div class="unidad"><input id="cLim1" type="number" step="0.5" min="15" max="50" aria-label="Límite del primer rango" inputmode="decimal"><span>°C</span></div><div class="unidad"><input id="cWBajo" type="number" step="50" min="0" aria-label="Potencia del aire en el primer rango" inputmode="numeric"><span>W</span></div>
-          <span class="rt" id="rtMedio">Desde 30 °C y menos de</span><div class="unidad"><input id="cLim2" type="number" step="0.5" min="15" max="50" aria-label="Límite del segundo rango" inputmode="decimal"><span>°C</span></div><div class="unidad"><input id="cWMedio" type="number" step="50" min="0" aria-label="Potencia del aire en el segundo rango" inputmode="numeric"><span>W</span></div>
-          <span class="rt" id="rtAlto">Desde ese valor en adelante</span><span></span><div class="unidad"><input id="cWAlto" type="number" step="50" min="0" aria-label="Potencia del aire en el tercer rango" inputmode="numeric"><span>W</span></div>
+          <span class="rt" id="rtMedio">De 30 °C a menos de</span><div class="unidad"><input id="cLim2" type="number" step="0.5" min="15" max="50" aria-label="Límite del segundo rango" inputmode="decimal"><span>°C</span></div><div class="unidad"><input id="cWMedio" type="number" step="50" min="0" aria-label="Potencia del aire en el segundo rango" inputmode="numeric"><span>W</span></div>
+          <span class="rt" id="rtAlto">33 °C o más</span><span class="rt" style="padding-left:12px">—</span><div class="unidad"><input id="cWAlto" type="number" step="50" min="0" aria-label="Potencia del aire en el tercer rango" inputmode="numeric"><span>W</span></div>
         </div>
         <p class="error" id="configError" role="alert" hidden style="margin-top:12px"></p>
         <div class="acciones">
@@ -1190,6 +1196,9 @@ const CONSULTAS = [
 ];
 function abrirConsultas(){
   if (!$('selConsulta').options.length) $('selConsulta').innerHTML = CONSULTAS.map((c, i) => `<option value="${i}">${esc(c.nombre)}</option>`).join('');
+  const elegida = $('selConsultaAula').value;
+  $('selConsultaAula').innerHTML = '<option value="">Todas mis aulas</option>' + aulas.map(a => `<option value="${esc(a.nombre)}">${esc(a.nombre)}</option>`).join('');
+  if (aulas.some(a => a.nombre === elegida)) $('selConsultaAula').value = elegida;
   mostrarConsulta();
 }
 function mostrarConsulta(){
@@ -1198,6 +1207,7 @@ function mostrarConsulta(){
   $('consultaResultado').innerHTML = ''; $('consultaResumen').textContent = ''; $('consultaError').hidden = true;
 }
 $('selConsulta').onchange = mostrarConsulta;
+$('selConsultaAula').onchange = () => { if ($('consultaResultado').innerHTML) $('bConsultar').click(); };
 const COLUMNAS = { aula:'Aula', lecturas:'Lecturas', temperatura_promedio:'Temp. promedio', humedad_promedio:'Humedad promedio', fecha_hora:'Fecha y hora', temperatura:'Temperatura', humedad:'Humedad',
   equipo:'Equipo', veces_que_se_prendio:'Veces que se prendió', ultima_vez:'Última vez', responsable:'Responsable', dispositivo:'Dispositivo', ultimo_contacto:'Último contacto', en_linea:'En línea',
   hay_personas:'Gente', ventilador:'Ventilador', aire:'Aire', luces:'Luces' };
@@ -1206,11 +1216,13 @@ $('bConsultar').onclick = async () => {
   const c = CONSULTAS[+$('selConsulta').value || 0], b = $('bConsultar');
   b.disabled = true; $('consultaError').hidden = true; $('consultaResumen').textContent = 'Consultando…';
   try {
-    const filas = await api.consulta(c.vista);
-    if (!filas.length) $('consultaResultado').innerHTML = '<p class="vacio">La consulta no devolvió datos.</p>';
+    const aula = $('selConsultaAula').value;
+    let filas = await api.consulta(c.vista);
+    if (aula) filas = filas.filter(f => f.aula === aula);
+    if (!filas.length) $('consultaResultado').innerHTML = '<p class="vacio">La consulta no devolvió datos' + (aula ? ' para ' + esc(aula) : '') + '.</p>';
     else { const cols = Object.keys(filas[0]);
       $('consultaResultado').innerHTML = `<table class="tabla"><thead><tr>${cols.map(k => `<th>${esc(COLUMNAS[k] || k)}</th>`).join('')}</tr></thead><tbody>${filas.map(f => `<tr>${cols.map(k => `<td>${esc(valor(k, f[k]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`; }
-    $('consultaResumen').textContent = filas.length + (filas.length === 1 ? ' fila' : ' filas') + ' · consultado a las ' + new Date().toLocaleTimeString('es-AR',{hourCycle:'h23'});
+    $('consultaResumen').textContent = (aula || 'Todas tus aulas') + ' · ' + filas.length + (filas.length === 1 ? ' fila' : ' filas') + ' · consultado a las ' + new Date().toLocaleTimeString('es-AR',{hourCycle:'h23'});
   } catch (x) { $('consultaError').textContent = mensaje(x); $('consultaError').hidden = false; $('consultaResumen').textContent = ''; }
   b.disabled = false;
 };
@@ -1243,7 +1255,7 @@ $('formClave').addEventListener('submit', async e => {
 // =====================================================================
 const CAMPOS = { cVent:'temp_ventilador', cAire:'temp_aire', cMin:'minutos_sin_movimiento', cPrecio:'precio_kwh', cPotVent:'potencia_ventilador_w', cPotLuces:'potencia_luces_w',
   cLim1:'aire_limite_1', cLim2:'aire_limite_2', cWBajo:'aire_w_bajo', cWMedio:'aire_w_medio', cWAlto:'aire_w_alto' };
-function abrirConfig(){ llenarConfig(cfg); $('configEstado').textContent = ''; $('configError').hidden = true; }
+function abrirConfig(){ $('configAulas').textContent = aulas.length ? (aulas.length === 1 ? 'tu aula: ' : 'tus ' + aulas.length + ' aulas: ') + aulas.map(a => a.nombre).join(', ') : 'todas las aulas que agregues'; llenarConfig(cfg); $('configEstado').textContent = ''; $('configError').hidden = true; }
 function llenarConfig(c){ for (const [id, k] of Object.entries(CAMPOS)) $(id).value = +c[k]; actualizarResumen(); }
 function leerConfig(){ const c = {}; for (const [id, k] of Object.entries(CAMPOS)) c[k] = $(id).value === '' ? NaN : +$(id).value; return c; }
 function validarConfig(c){
@@ -1258,8 +1270,8 @@ function validarConfig(c){
 }
 function actualizarResumen(){
   const c = leerConfig();
-  $('rtMedio').textContent = (Number.isFinite(c.aire_limite_1) ? 'Desde ' + grados(c.aire_limite_1) : 'Desde ese valor') + ' y menos de';
-  $('rtAlto').textContent = Number.isFinite(c.aire_limite_2) ? 'Desde ' + grados(c.aire_limite_2) + ' en adelante' : 'Desde ese valor en adelante';
+  $('rtMedio').textContent = (Number.isFinite(c.aire_limite_1) ? 'De ' + grados(c.aire_limite_1) : 'Desde el límite anterior') + ' a menos de';
+  $('rtAlto').textContent = Number.isFinite(c.aire_limite_2) ? grados(c.aire_limite_2) + ' o más' : 'Desde el último límite';
   const error = validarConfig(c);
   $('resumenReglas').innerHTML = error ? esc(error) :
     `Con gente en el aula: con menos de <b>${grados(c.temp_ventilador)}</b> no se prende nada; de <b>${grados(c.temp_ventilador)}</b> a menos de <b>${grados(c.temp_aire)}</b>, el ventilador; desde <b>${grados(c.temp_aire)}</b>, el aire (y el ventilador se apaga). `
