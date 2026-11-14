@@ -82,7 +82,8 @@ unsigned long esperaSinMovimiento = 5UL * 60000UL;  // 5 minutos (se cambia desd
 const unsigned long CALENTAMIENTO_PIR = 5000;       // al prenderlo, el PIR puede dar falsos avisos: se ignoran los primeros 5 segundos
 const unsigned long PULSO_MINIMO_PIR = 200;         // un movimiento real dura más que esto; los picos cortos son ruido
 const unsigned long INTERVALO_LECTURA = 2000;       // cada cuánto se leen los demás sensores y se decide
-const unsigned long INTERVALO_REPORTE = 2000;       // cada cuánto se mandan los datos a Supabase (y se recibe la configuración)
+const unsigned long VENTANA_CONFIGURACION = 180000; // al prenderse, la red ClimControl-XXXX queda abierta al menos 3 minutos
+const unsigned long INTERVALO_REPORTE = 2000;      // cada cuánto se mandan los datos a Supabase (y se recibe la configuración)
 
 unsigned long ultimoMovimiento = 0;
 bool huboMovimiento = false;
@@ -184,24 +185,6 @@ void setup() {
   mac.replace(":", "");
   nombreRed = "ClimControl-" + mac.substring(8);
 
-  if (wifiNombre != "") {
-    // Probamos 15 segundos como máximo: sin WiFi el aula igual tiene que funcionar
-    WiFi.begin(wifiNombre.c_str(), wifiClave.c_str());
-    Serial.print("Conectando a WiFi ");
-    Serial.print(wifiNombre);
-    unsigned long inicioWiFi = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - inicioWiFi < 15000) {
-      delay(500);
-      Serial.print(".");
-    }
-    Serial.println();
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.print("WiFi conectado. IP: ");
-      Serial.println(WiFi.localIP());
-    } else {
-      Serial.println("No se pudo conectar al WiFi. Los sensores siguen funcionando igual.");
-    }
-  }
   ultimaVezConectado = millis();
 
   // Sin verificar el certificado: alcanza para el prototipo (los datos igual viajan cifrados)
@@ -225,8 +208,16 @@ void setup() {
   server.onNotFound(paginaNoEncontrada);
   server.begin();
 
-  // Red propia al arrancar: si falta el WiFi, si falta vincular, o si todavía no se vinculó y el WiFi no conecta
-  if (wifiNombre == "" || (dispCodigo == "" && vinculacion == "") || (dispCodigo == "" && WiFi.status() != WL_CONNECTED)) abrirPortal();
+  // La red propia ClimControl-XXXX aparece SIEMPRE apenas se prende la placa, así quien la enchufa
+  // la puede conectar a su WiFi y a su aula. Queda abierta al menos VENTANA_CONFIGURACION; si el
+  // WiFi guardado no está (por ejemplo, en otro lugar), sigue abierta hasta que alguien la configure.
+  abrirPortal();
+  if (wifiNombre != "") {
+    Serial.print("Probando el WiFi guardado: ");
+    Serial.println(wifiNombre);
+    WiFi.begin(wifiNombre.c_str(), wifiClave.c_str());
+    intentoWiFiDesde = millis();
+  }
 }
 
 // ===============================
@@ -305,10 +296,13 @@ void atenderConexion() {
     vincular();
   }
 
-  // Todo listo: la red propia se apaga a los 90 segundos (para que el celular vea el resultado)
+  // Todo listo (WiFi conectado y aparato vinculado): la red propia se apaga cuando pasaron los
+  // primeros 3 minutos desde que se prendió y no hay ningún celular conectado a ella
+  // (a los 10 minutos de estar todo listo se apaga igual).
   if (portalActivo && conectado && dispCodigo != "" && vinculacion == "") {
     if (listoDesde == 0) listoDesde = millis();
-    if (millis() - listoDesde > 90000) cerrarPortal();
+    bool pasoLaVentana = millis() - portalDesde > VENTANA_CONFIGURACION && millis() - listoDesde > 30000;
+    if ((pasoLaVentana && WiFi.softAPgetStationNum() == 0) || millis() - listoDesde > 600000) cerrarPortal();
   } else {
     listoDesde = 0;
   }
@@ -700,7 +694,7 @@ void paginaInicio() {
   html += "<p class='n'>Tiene que ser de 2,4 GHz. Las redes que piden iniciar sesión en una página no sirven.</p>";
   html += "<label for='k'>Clave del WiFi</label><input id='k' name='clave' type='password'>";
   html += "<label for='v'>Código de vinculación</label><input id='v' name='vinc' placeholder='XXXX-XXXX' autocapitalize='characters' autocomplete='off'>";
-  if (dispCodigo != "") html += "<p class='n'>Este aparato ya está vinculado (" + dispCodigo + "). Si solo cambiás el WiFi, dejá el código vacío.</p>";
+  if (dispCodigo != "") html += "<p class='n'>Este aparato ya está vinculado a un aula (" + dispCodigo + "). Para usarlo en <b>otra aula u otra cuenta</b>, escribí el código que te da la app. Si solo cambiás el WiFi, dejalo vacío.</p>";
   html += "<button type='submit'>Conectar</button></form></div></body></html>";
   server.send(200, "text/html", html);
 }
