@@ -210,6 +210,7 @@ pre.codigo{font:12.5px/1.5 var(--mono);background:var(--surface-2);border-radius
 .unidad{position:relative}
 .unidad input{padding-right:46px}
 .unidad span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+.dos-unidades{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rangos{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px 12px;align-items:center;margin-top:12px}
 .rangos .rt{font-size:14.5px;color:var(--text)}
 .rangos .rh{font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
@@ -457,13 +458,13 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
 
     <!-- ---------- CONFIGURACIÓN ---------- -->
     <section class="vista" data-vista="configuracion" hidden>
-      <div class="cab-vista"><div><h1>Configuración</h1><p>Se aplica a <b id="configAulas">todas tus aulas</b>. La ESP32 de cada aula toma los cambios en menos de 10 segundos.</p></div></div>
+      <div class="cab-vista"><div><h1>Configuración</h1><p>Se aplica a <b id="configAulas">todas tus aulas</b>. La ESP32 de cada aula toma los cambios en unos 2 segundos.</p></div></div>
       <form class="card" id="formConfig" novalidate>
         <div class="cab"><h2><svg class="ic"><use href="#i-thermo"/></svg>Cuándo se prende cada equipo</h2></div>
         <div class="form-grid">
           <div class="campo"><label for="cVent">Ventilador desde</label><div class="unidad"><input id="cVent" type="number" step="0.5" min="15" max="40" inputmode="decimal"><span>°C</span></div></div>
           <div class="campo"><label for="cAire">Aire acondicionado desde</label><div class="unidad"><input id="cAire" type="number" step="0.5" min="15" max="40" inputmode="decimal"><span>°C</span></div></div>
-          <div class="campo"><label for="cMin">Aula vacía después de</label><div class="unidad"><input id="cMin" type="number" step="1" min="0" max="60" inputmode="numeric"><span>min</span></div><span class="ayuda">Sin movimiento en el PIR. 0 = al instante (para demostraciones).</span></div>
+          <div class="campo"><label for="cMin">Aula vacía después de</label><div class="dos-unidades"><div class="unidad"><input id="cMin" type="number" step="1" min="0" max="60" inputmode="numeric"><span>min</span></div><div class="unidad"><input id="cSeg" type="number" step="1" min="0" max="59" inputmode="numeric" aria-label="Segundos sin movimiento"><span>s</span></div></div><span class="ayuda">Sin movimiento en el PIR, hasta 60 min. 0 min 0 s = al instante (para demostraciones).</span></div>
         </div>
         <p class="resumen-reglas" id="resumenReglas">--</p>
         <p class="nota" style="margin-top:10px">Si la ESP32 se queda sin internet, sigue con los últimos valores que recibió. Si nunca recibió ninguno, usa los de fábrica: 24 °C y 27 °C.</p>
@@ -507,7 +508,7 @@ dialog .dl-acc{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;mar
 const SUPABASE_URL = 'https://jkhyakdhlcbwkrlynvxh.supabase.co';
 const SUPABASE_CLAVE = 'sb_publishable_qeKalge2NrjIaetxfz_30g_J2E73UaL';
 
-const VALORES_DE_FABRICA = { temp_ventilador:24, temp_aire:27, minutos_sin_movimiento:5, precio_kwh:180,
+const VALORES_DE_FABRICA = { temp_ventilador:24, temp_aire:27, segundos_sin_movimiento:300, precio_kwh:180,
   potencia_ventilador_w:150, potencia_luces_w:180, aire_limite_1:30, aire_limite_2:33, aire_w_bajo:1100, aire_w_medio:1500, aire_w_alto:1900 };
 
 // ---------- utilidades ----------
@@ -885,7 +886,7 @@ async function refrescarAulas(){
 // INICIO: el aula en tiempo real
 // =====================================================================
 function abrirInicio(){
-  cada(async () => { await refrescarAulas(); pintarSelector(); pintarVivo(); cargarEventos(); }, 5000);
+  cada(async () => { await refrescarAulas(); pintarSelector(); pintarVivo(); cargarEventos(); }, 2000);
   cada(() => cargarGrafico(), 30000);
   cada(async () => { await cargarConsumoHoy(); pintarConsumoHoy(); }, 60000);
 }
@@ -986,7 +987,7 @@ async function cargarGrafico(){
 // AULAS
 // =====================================================================
 function abrirAulas(){
-  cada(async () => { await refrescarAulas(); pintarAulas(); }, 10000);
+  cada(async () => { await refrescarAulas(); pintarAulas(); }, 2000);
   cada(async () => { await cargarConsumoHoy(); pintarAulas(); }, 60000);
 }
 function pintarAulas(){
@@ -1175,7 +1176,7 @@ function pintarDias(filas, desde, dias){
 }
 function pintarComo(){
   $('comoSeCalcula').innerHTML = `
-    <p>La ESP32 manda cada 10 segundos qué equipos están prendidos. Sumamos el tiempo que estuvo prendido cada uno y lo multiplicamos por su potencia: <b>energía (kWh) = potencia (kW) × horas</b>. El costo es <b>energía × precio del kWh</b>.</p>
+    <p>La ESP32 avisa al instante cuando un equipo se prende o se apaga (y, si no cambia nada, guarda un dato cada 10 segundos). Sumamos el tiempo que estuvo prendido cada uno y lo multiplicamos por su potencia: <b>energía (kWh) = potencia (kW) × horas</b>. El costo es <b>energía × precio del kWh</b>.</p>
     <p><b>Ventilador:</b> ${nf0.format(cfg.potencia_ventilador_w)} W fijos. <b>Luces:</b> ${nf0.format(cfg.potencia_luces_w)} W fijos.</p>
     <p><b>Aire acondicionado:</b> depende de la temperatura del aula en ese momento: menos de ${grados(cfg.aire_limite_1)}, ${nf0.format(cfg.aire_w_bajo)} W; de ${grados(cfg.aire_limite_1)} a ${grados(cfg.aire_limite_2)}, ${nf0.format(cfg.aire_w_medio)} W; ${grados(cfg.aire_limite_2)} o más, ${nf0.format(cfg.aire_w_alto)} W.</p>
     <p><b>Precio:</b> ${pesos(cfg.precio_kwh)} por kWh, un valor de referencia para Córdoba (EPEC). Para que sea exacto, cargá el de tu factura en Configuración.</p>
@@ -1285,16 +1286,30 @@ $('formClave').addEventListener('submit', async e => {
 // =====================================================================
 // CONFIGURACIÓN
 // =====================================================================
-const CAMPOS = { cVent:'temp_ventilador', cAire:'temp_aire', cMin:'minutos_sin_movimiento', cPrecio:'precio_kwh', cPotVent:'potencia_ventilador_w', cPotLuces:'potencia_luces_w',
+const CAMPOS = { cVent:'temp_ventilador', cAire:'temp_aire', cPrecio:'precio_kwh', cPotVent:'potencia_ventilador_w', cPotLuces:'potencia_luces_w',
   cLim1:'aire_limite_1', cLim2:'aire_limite_2', cWBajo:'aire_w_bajo', cWMedio:'aire_w_medio', cWAlto:'aire_w_alto' };
 function abrirConfig(){ $('configAulas').textContent = aulas.length ? (aulas.length === 1 ? 'tu aula: ' : 'tus ' + aulas.length + ' aulas: ') + aulas.map(a => a.nombre).join(', ') : 'todas las aulas que agregues'; llenarConfig(cfg); $('configEstado').textContent = ''; $('configError').hidden = true; }
-function llenarConfig(c){ for (const [id, k] of Object.entries(CAMPOS)) $(id).value = +c[k]; actualizarResumen(); }
-function leerConfig(){ const c = {}; for (const [id, k] of Object.entries(CAMPOS)) c[k] = $(id).value === '' ? NaN : +$(id).value; return c; }
+// La espera sin movimiento se guarda en segundos y se muestra en minutos + segundos
+function llenarConfig(c){
+  for (const [id, k] of Object.entries(CAMPOS)) $(id).value = +c[k];
+  const s = c.segundos_sin_movimiento != null ? +c.segundos_sin_movimiento : c.minutos_sin_movimiento != null ? c.minutos_sin_movimiento * 60 : 300;
+  $('cMin').value = Math.floor(s / 60); $('cSeg').value = s % 60;
+  actualizarResumen();
+}
+function leerEspera(){
+  const m = $('cMin').value, s = $('cSeg').value;
+  if (m === '' && s === '') return NaN;
+  const mi = m === '' ? 0 : +m, se = s === '' ? 0 : +s;
+  if (!Number.isInteger(mi) || !Number.isInteger(se) || mi < 0 || se < 0 || se > 59) return NaN;
+  return mi * 60 + se;
+}
+function leerConfig(){ const c = {}; for (const [id, k] of Object.entries(CAMPOS)) c[k] = $(id).value === '' ? NaN : +$(id).value; c.segundos_sin_movimiento = leerEspera(); return c; }
+const duracion = (s) => { const m = Math.floor(s / 60), r = s % 60; return m && r ? m + ' min ' + r + ' s' : m ? m + ' min' : r + ' s'; };
 function validarConfig(c){
   const fuera = (v, a, b) => !Number.isFinite(v) || v < a || v > b;
   if (fuera(c.temp_ventilador, 15, 40) || fuera(c.temp_aire, 15, 40)) return 'Las temperaturas tienen que estar entre 15 y 40 °C.';
   if (c.temp_aire <= c.temp_ventilador) return 'El aire tiene que arrancar a una temperatura más alta que el ventilador.';
-  if (fuera(c.minutos_sin_movimiento, 0, 60) || !Number.isInteger(c.minutos_sin_movimiento)) return 'Los minutos sin movimiento van de 0 a 60, sin decimales.';
+  if (fuera(c.segundos_sin_movimiento, 0, 3600) || !Number.isInteger(c.segundos_sin_movimiento)) return 'El aula vacía va de 0 s a 60 min: minutos enteros y segundos de 0 a 59.';
   if (fuera(c.precio_kwh, 0, 100000)) return 'Revisá el precio del kWh.';
   for (const k of ['potencia_ventilador_w', 'potencia_luces_w', 'aire_w_bajo', 'aire_w_medio', 'aire_w_alto']) if (fuera(c[k], 0, 20000) || !Number.isInteger(c[k])) return 'Las potencias van de 0 a 20.000 W, sin decimales.';
   if (fuera(c.aire_limite_1, 15, 50) || fuera(c.aire_limite_2, 15, 50) || c.aire_limite_2 <= c.aire_limite_1) return 'Los rangos del aire tienen que ir de menor a mayor (entre 15 y 50 °C).';
@@ -1307,7 +1322,7 @@ function actualizarResumen(){
   const error = validarConfig(c);
   $('resumenReglas').innerHTML = error ? esc(error) :
     `Con gente en el aula: con menos de <b>${grados(c.temp_ventilador)}</b> no se prende nada; de <b>${grados(c.temp_ventilador)}</b> a menos de <b>${grados(c.temp_aire)}</b>, el ventilador; desde <b>${grados(c.temp_aire)}</b>, el aire (y el ventilador se apaga). `
-    + (c.minutos_sin_movimiento === 0 ? 'Si el PIR deja de detectar movimiento, se apaga todo al instante.' : `Si pasan <b>${c.minutos_sin_movimiento} min</b> sin movimiento, el aula se considera vacía y se apaga todo.`);
+    + (c.segundos_sin_movimiento === 0 ? 'Si el PIR deja de detectar movimiento, se apaga todo al instante.' : `Si pasan <b>${duracion(c.segundos_sin_movimiento)}</b> sin movimiento, el aula se considera vacía y se apaga todo.`);
 }
 $('formConfig').addEventListener('input', () => { actualizarResumen(); $('configEstado').textContent = ''; });
 $('bFabrica').onclick = () => { llenarConfig(VALORES_DE_FABRICA); estado('configEstado', 'Cargados los valores de fábrica: tocá Guardar cambios para aplicarlos.'); $('configEstado').className = 'nota'; };
@@ -1316,7 +1331,7 @@ $('formConfig').addEventListener('submit', async e => {
   const c = leerConfig(), err = $('configError'), error = validarConfig(c);
   err.hidden = true;
   if (error){ err.textContent = error; err.hidden = false; return; }
-  try { cfg = await api.guardarConfig(c); llenarConfig(cfg); consumoHoy.ts = 0; estado('configEstado', 'Guardado. La ESP32 lo toma en menos de 10 segundos.'); }
+  try { cfg = await api.guardarConfig(c); llenarConfig(cfg); consumoHoy.ts = 0; estado('configEstado', 'Guardado. La ESP32 lo toma en unos 2 segundos.'); }
   catch (x) { err.textContent = mensaje(x); err.hidden = false; }
 });
 

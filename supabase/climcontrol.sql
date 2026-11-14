@@ -28,7 +28,7 @@ create table if not exists public.configuracion (
   usuario_id             uuid primary key references auth.users(id) on delete cascade,
   temp_ventilador        numeric(4,1) not null default 24  check (temp_ventilador between 15 and 40),
   temp_aire              numeric(4,1) not null default 27  check (temp_aire between 15 and 40),
-  minutos_sin_movimiento int          not null default 5   check (minutos_sin_movimiento between 0 and 60),
+  segundos_sin_movimiento int         not null default 300 check (segundos_sin_movimiento between 0 and 3600),  -- aula vacía tras estos segundos sin movimiento
   precio_kwh             numeric(10,2) not null default 180 check (precio_kwh between 0 and 100000),
   potencia_ventilador_w  int not null default 150  check (potencia_ventilador_w between 0 and 20000),
   potencia_luces_w       int not null default 180  check (potencia_luces_w between 0 and 20000),
@@ -42,6 +42,22 @@ create table if not exists public.configuracion (
   constraint aire_despues_del_ventilador check (temp_aire > temp_ventilador),
   constraint rangos_en_orden check (aire_limite_2 > aire_limite_1)
 );
+
+-- Bases creadas antes del 14-nov-2026: la espera estaba en minutos enteros; se pasa a segundos
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'configuracion' and column_name = 'segundos_sin_movimiento') then
+    alter table public.configuracion add column segundos_sin_movimiento int not null default 300;
+    if exists (select 1 from information_schema.columns
+                where table_schema = 'public' and table_name = 'configuracion' and column_name = 'minutos_sin_movimiento') then
+      update public.configuracion set segundos_sin_movimiento = minutos_sin_movimiento * 60;
+    end if;
+    alter table public.configuracion add constraint segundos_sin_movimiento_validos
+      check (segundos_sin_movimiento between 0 and 3600);
+  end if;
+  alter table public.configuracion drop column if exists minutos_sin_movimiento;
+end $$;
 
 -- Aulas de cada cuenta
 create table if not exists public.aulas (
@@ -160,7 +176,7 @@ revoke all on public.perfiles, public.configuracion, public.aulas, public.dispos
 grant select on public.perfiles to authenticated;
 grant update (nombre) on public.perfiles to authenticated;
 grant select on public.configuracion to authenticated;
-grant update (temp_ventilador, temp_aire, minutos_sin_movimiento, precio_kwh, potencia_ventilador_w, potencia_luces_w,
+grant update (temp_ventilador, temp_aire, segundos_sin_movimiento, precio_kwh, potencia_ventilador_w, potencia_luces_w,
               aire_limite_1, aire_limite_2, aire_w_bajo, aire_w_medio, aire_w_alto) on public.configuracion to authenticated;
 grant select, delete on public.aulas to authenticated;          -- las aulas se crean con crear_aula()
 grant update (nombre) on public.aulas to authenticated;
@@ -226,8 +242,8 @@ begin
   return json_build_object('codigo', v_codigo, 'clave', v_clave);
 end $$;
 
--- La ESP32 llama a esta función cada 10 segundos (y apenas cambia un equipo).
--- Guarda la lectura, registra los eventos y le devuelve las temperaturas de la configuración.
+-- La ESP32 llama a esta función cada 2 segundos (y apenas cambia un equipo).
+-- Guarda la lectura, registra los eventos y le devuelve la configuración.
 create or replace function public.dispositivo_reportar(
   p_codigo text, p_clave text,
   p_temperatura numeric default null, p_humedad numeric default null,
@@ -239,6 +255,7 @@ declare
   v_disp bigint; v_aula bigint; v_usuario uuid;
   v_hay_previa boolean;
   v_fecha timestamptz; v_vent boolean; v_aire boolean; v_luces boolean; v_gente boolean;
+  v_temp numeric; v_hum numeric;
   v_cambio boolean;
   c record;
 begin
@@ -253,9 +270,11 @@ begin
   p_luces := coalesce(p_luces, false);
   if p_temperatura < -40 or p_temperatura > 85 then p_temperatura := null; end if;   -- el sensor falló
   if p_humedad < 0 or p_humedad > 100 then p_humedad := null; end if;
+  p_temperatura := round(p_temperatura, 1);
+  p_humedad := round(p_humedad, 1);
 
-  select l.fecha_hora, l.ventilador, l.aire, l.luces, l.hay_personas
-    into v_fecha, v_vent, v_aire, v_luces, v_gente
+  select l.fecha_hora, l.ventilador, l.aire, l.luces, l.hay_personas, l.temperatura, l.humedad
+    into v_fecha, v_vent, v_aire, v_luces, v_gente, v_temp, v_hum
     from public.lecturas l where l.aula_id = v_aula order by l.fecha_hora desc limit 1;
   v_hay_previa := found;
 
@@ -269,20 +288,24 @@ begin
    where e.ahora <> e.antes;
   v_cambio := found;
 
-  -- Lectura: como mucho una cada 5 segundos, salvo que algo haya cambiado
-  if not v_hay_previa or v_cambio or now() - v_fecha >= interval '5 seconds' then
+  -- Lectura nueva: si cambió algo (la humedad, de a 2 % para no guardar el ruido del sensor)
+  -- o si pasaron 10 segundos desde la anterior
+  if not v_hay_previa or v_cambio
+     or p_temperatura is distinct from v_temp
+     or (p_humedad is null) <> (v_hum is null) or abs(p_humedad - v_hum) >= 2
+     or now() - v_fecha >= interval '10 seconds' then
     insert into public.lecturas (aula_id, temperatura, humedad, hay_personas, ventilador, aire, luces)
-    values (v_aula, round(p_temperatura, 1), round(p_humedad, 1), p_hay_personas, p_ventilador, p_aire, p_luces);
+    values (v_aula, p_temperatura, p_humedad, p_hay_personas, p_ventilador, p_aire, p_luces);
   end if;
 
   update public.dispositivos set ultimo_contacto = now() where id = v_disp;
 
-  select cf.temp_ventilador, cf.temp_aire, cf.minutos_sin_movimiento into c
+  select cf.temp_ventilador, cf.temp_aire, cf.segundos_sin_movimiento into c
     from public.configuracion cf where cf.usuario_id = v_usuario;
   return json_build_object(
-    'temp_ventilador',        coalesce(c.temp_ventilador, 24),
-    'temp_aire',              coalesce(c.temp_aire, 27),
-    'minutos_sin_movimiento', coalesce(c.minutos_sin_movimiento, 5));
+    'temp_ventilador',         coalesce(c.temp_ventilador, 24),
+    'temp_aire',               coalesce(c.temp_aire, 27),
+    'segundos_sin_movimiento', coalesce(c.segundos_sin_movimiento, 300));
 end $$;
 
 -- Consumo estimado por aula y por día. Se calcula con las lecturas: cada lectura cuenta

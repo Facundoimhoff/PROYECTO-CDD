@@ -1,7 +1,7 @@
 // =====================================================================
 // ClimControl · versión WiFi
 // La ESP32 controla el aula sola (sensores + relés) y, con WiFi, manda
-// los datos a Supabase cada 10 segundos. En la respuesta recibe las
+// los datos a Supabase cada 2 segundos. En la respuesta recibe las
 // temperaturas que se eligen en la página (Configuración).
 //
 // Para el cliente no hace falta Arduino IDE:
@@ -78,11 +78,11 @@ float tempAire       = 27.0;   // desde acá: aire acondicionado (y el ventilado
 // ----- Presencia (sensor PIR) -----
 // El PIR detecta MOVIMIENTO, no presencia: un alumno quieto no lo activa.
 // Por eso "hay personas" = hubo movimiento en los últimos esperaSinMovimiento ms.
-unsigned long esperaSinMovimiento = 5UL * 60000UL;  // 5 minutos (también se cambia desde la página; 0 = al instante)
+unsigned long esperaSinMovimiento = 5UL * 60000UL;  // 5 minutos (se cambia desde la página en minutos y segundos; 0 = al instante)
 const unsigned long CALENTAMIENTO_PIR = 60000;      // al prenderlo, el PIR tarda ~1 minuto en estabilizarse
 const unsigned long PULSO_MINIMO_PIR = 200;         // un movimiento real dura más que esto; los picos cortos son ruido
 const unsigned long INTERVALO_LECTURA = 2000;       // cada cuánto se leen los demás sensores y se decide
-const unsigned long INTERVALO_REPORTE = 10000;      // cada cuánto se mandan los datos a Supabase
+const unsigned long INTERVALO_REPORTE = 2000;       // cada cuánto se mandan los datos a Supabase (y se recibe la configuración)
 
 unsigned long ultimoMovimiento = 0;
 bool huboMovimiento = false;
@@ -101,6 +101,9 @@ String nombreRed;                    // red propia del aparato: ClimControl-XXXX
 String estadoVinculacion = "";
 bool portalActivo = false;
 unsigned long portalDesde = 0, ultimaVezConectado = 0, ultimoIntentoVinc = 0, listoDesde = 0, botonDesde = 0;
+unsigned long intentoWiFiDesde = 0, ultimoReintentoWiFi = 0;   // intentos de entrar al WiFi con la red propia abierta
+String opcionesRedes = "";        // redes WiFi cercanas, para la lista de la página de configuración
+unsigned long ultimoEscaneo = 0;
 int rechazosSeguidos = 0;
 
 DHT dht(PIN_DHT, DHTTYPE);
@@ -168,6 +171,13 @@ void setup() {
   Serial.print(tempAire, 1);
   Serial.println(" C");
 
+  // Para ver por el monitor serie qué pasa cuando un celular entra a la red propia
+  WiFi.onEvent([](arduino_event_id_t evento, arduino_event_info_t info) {
+    if (evento == ARDUINO_EVENT_WIFI_AP_STACONNECTED) Serial.println("Celular conectado a la red propia");
+    if (evento == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED) Serial.println("Celular con direccion: " + IPAddress(info.wifi_ap_staipassigned.ip.addr).toString());
+    if (evento == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) Serial.println("Celular desconectado de la red propia");
+  });
+
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);   // si se corta, la ESP32 vuelve a conectarse sola
   String mac = WiFi.macAddress();
@@ -215,7 +225,8 @@ void setup() {
   server.onNotFound(paginaNoEncontrada);
   server.begin();
 
-  if (wifiNombre == "" || (dispCodigo == "" && vinculacion == "")) abrirPortal();
+  // Red propia al arrancar: si falta el WiFi, si falta vincular, o si todavía no se vinculó y el WiFi no conecta
+  if (wifiNombre == "" || (dispCodigo == "" && vinculacion == "") || (dispCodigo == "" && WiFi.status() != WL_CONNECTED)) abrirPortal();
 }
 
 // ===============================
@@ -241,7 +252,7 @@ void loop() {
     mostrarDatos();
   }
 
-  // A Supabase: cada 10 segundos, o enseguida si cambió algún equipo o la presencia
+  // A Supabase: cada 2 segundos, o enseguida si cambió algún equipo o la presencia
   if (dispCodigo != "") {
     int estadoActual = (hayPersonas ? 1 : 0) + (ventiladorEncendido ? 2 : 0) + (aireEncendido ? 4 : 0) + (lucesEncendidas ? 8 : 0);
     bool cambio = estadoActual != ultimoEstadoReportado;
@@ -260,12 +271,33 @@ bool valido(const char* valor, const char* deEjemplo) {
 }
 
 void atenderConexion() {
-  if (portalActivo) dns.processNextRequest();
+  if (portalActivo) {
+    dns.processNextRequest();
+    leerRedesEncontradas();
+    // La lista de redes se actualiza solo cuando no hay ningún celular conectado: mientras busca,
+    // la placa deja la red unos segundos y la página se cortaría.
+    if (WiFi.softAPgetStationNum() == 0 && millis() - ultimoEscaneo > 60000) buscarRedes();
+  }
   bool conectado = WiFi.status() == WL_CONNECTED;
   if (conectado) ultimaVezConectado = millis();
 
   // Si hace un minuto que no se puede conectar, se abre la red propia para corregir el WiFi
   if (!portalActivo && wifiNombre != "" && !conectado && millis() - ultimaVezConectado > 60000) abrirPortal();
+
+  // Con la red propia abierta no se insiste con un WiFi que no conecta: mientras lo busca, la placa
+  // salta de canal y el celular pierde la página. Se prueba 20 segundos después de guardar los datos
+  // y, si nadie está conectado a la red propia, se vuelve a probar cada 3 minutos (por si fue un corte).
+  if (portalActivo && !conectado && wifiNombre != "") {
+    if (intentoWiFiDesde != 0 && millis() - intentoWiFiDesde > 20000) {
+      WiFi.disconnect();
+      intentoWiFiDesde = 0;
+      ultimoReintentoWiFi = millis();
+    }
+    if (intentoWiFiDesde == 0 && millis() - ultimoReintentoWiFi > 180000 && WiFi.softAPgetStationNum() == 0) {
+      WiFi.begin(wifiNombre.c_str(), wifiClave.c_str());
+      intentoWiFiDesde = millis();
+    }
+  }
 
   // Canjear el código de vinculación (cada 10 segundos hasta que salga)
   if (conectado && vinculacion != "" && millis() - ultimoIntentoVinc > 10000) {
@@ -301,9 +333,24 @@ void abrirPortal() {
   portalDesde = millis();
   WiFi.mode(WIFI_AP_STA);   // la red propia y, a la vez, el intento de conexión al WiFi del aula
   WiFi.softAP(nombreRed.c_str());
+  // La placa se anuncia también como servidor DNS (el que traduce nombres como google.com a direcciones).
+  // Sin esto el celular no sabe a quién preguntar, no llega a hacer su consulta de "¿hay internet?"
+  // y nunca descubre que esta red tiene una página para iniciar sesión.
+  IPAddress ipPlaca(192, 168, 4, 1);
+  WiFi.softAPConfig(ipPlaca, ipPlaca, IPAddress(255, 255, 255, 0), IPAddress(192, 168, 4, 2), ipPlaca);
   delay(100);
+  // NO se usa WiFi.AP.enableDhcpCaptivePortal() (opción 114 de DHCP): con ella Android espera una API
+  // en https que devuelva JSON, deja de hacer su consulta normal de "¿hay internet?" y nunca abre la
+  // página (probado: el celular se conectaba, no consultaba nada y se iba solo a los pocos segundos).
+  // Sin ella, la consulta llega acá, se la redirige a 192.168.4.1 y aparece "Iniciar sesión en la red".
+  dns.setErrorReplyCode(DNSReplyCode::NoError);
   dns.start(53, "*", WiFi.softAPIP());
-  if (wifiNombre != "") WiFi.begin(wifiNombre.c_str(), wifiClave.c_str());
+  buscarRedes();
+  // Mientras la red propia está abierta, el WiFi guardado se prueba de a ratos (ver atenderConexion)
+  WiFi.setAutoReconnect(false);
+  if (WiFi.status() != WL_CONNECTED) WiFi.disconnect();
+  intentoWiFiDesde = 0;
+  ultimoReintentoWiFi = millis();
   Serial.print("Red de configuracion abierta: ");
   Serial.print(nombreRed);
   Serial.println("  (desde el celular: conectarse y entrar a http://192.168.4.1)");
@@ -314,6 +361,7 @@ void cerrarPortal() {
   dns.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   portalActivo = false;
   Serial.println("Red de configuracion cerrada: el aparato ya está conectado");
 }
@@ -446,7 +494,7 @@ void controlarAire() {
 
 // ----- Supabase -----
 // Llama a la función dispositivo_reportar de la base: guarda la lectura y
-// devuelve las temperaturas de la configuración. Devuelve true si salió bien.
+// devuelve la configuración (temperaturas y espera sin movimiento). Devuelve true si salió bien.
 bool reportar() {
   if (WiFi.status() != WL_CONNECTED) {
     estadoNube = "sin WiFi";
@@ -472,10 +520,12 @@ bool reportar() {
   if (codigo == 200) {
     estadoNube = "datos enviados";
     rechazosSeguidos = 0;
-    float tv, ta, minutos;
-    if (leerNumero(respuesta, "temp_ventilador", tv) && leerNumero(respuesta, "temp_aire", ta) &&
-        leerNumero(respuesta, "minutos_sin_movimiento", minutos)) {
-      aplicarConfiguracion(tv, ta, minutos);
+    float tv, ta, segundos;
+    // La base nueva manda segundos; una base sin actualizar todavía manda minutos
+    bool hayEspera = leerNumero(respuesta, "segundos_sin_movimiento", segundos);
+    if (!hayEspera && leerNumero(respuesta, "minutos_sin_movimiento", segundos)) { segundos *= 60; hayEspera = true; }
+    if (hayEspera && leerNumero(respuesta, "temp_ventilador", tv) && leerNumero(respuesta, "temp_aire", ta)) {
+      aplicarConfiguracion(tv, ta, segundos);
     }
     return true;
   }
@@ -523,10 +573,10 @@ bool leerTexto(const String& json, const char* clave, String& valor) {
   return valor.length() > 0;
 }
 
-// Usa las temperaturas que vienen de la página y las guarda en la memoria
-void aplicarConfiguracion(float tv, float ta, float minutos) {
-  if (tv < 15 || tv > 40 || ta < 15 || ta > 40 || ta <= tv || minutos < 0 || minutos > 60) return;   // valores raros: se ignoran
-  unsigned long espera = (unsigned long)(minutos * 60000.0);
+// Usa la configuración que viene de la página y la guarda en la memoria
+void aplicarConfiguracion(float tv, float ta, float segundos) {
+  if (tv < 15 || tv > 40 || ta < 15 || ta > 40 || ta <= tv || segundos < 0 || segundos > 3600) return;   // valores raros: se ignoran
+  unsigned long espera = (unsigned long)(segundos * 1000.0 + 0.5);
   if (tv == tempVentilador && ta == tempAire && espera == esperaSinMovimiento) return;
   tempVentilador = tv;
   tempAire = ta;
@@ -539,8 +589,10 @@ void aplicarConfiguracion(float tv, float ta, float minutos) {
   Serial.print(" C, aire desde ");
   Serial.print(ta, 1);
   Serial.print(" C, aula vacia despues de ");
-  Serial.print((int)minutos);
-  Serial.println(" min");
+  Serial.print(espera / 60000);
+  Serial.print(" min ");
+  Serial.print((espera / 1000) % 60);
+  Serial.println(" s");
 }
 
 void mostrarDatos() {
@@ -576,7 +628,10 @@ void mostrarDatos() {
   Serial.println(WiFi.status() == WL_CONNECTED ? "CONECTADO a " + wifiNombre : String("SIN CONEXION"));
   if (portalActivo) {
     Serial.print("Red de configuracion: ");
-    Serial.println(nombreRed);
+    Serial.print(nombreRed);
+    Serial.print(" (celulares conectados: ");
+    Serial.print(WiFi.softAPgetStationNum());
+    Serial.println(")");
   }
   Serial.print("Aparato: ");
   Serial.println(dispCodigo != "" ? dispCodigo : (vinculacion != "" ? String("vinculando...") : String("sin vincular")));
@@ -600,15 +655,41 @@ const char* ESTILO = "<meta charset='utf-8'><meta name='viewport' content='width
   "button{width:100%;height:48px;margin-top:20px;border:0;border-radius:12px;background:#0071e3;color:#fff;font-size:17px;font-weight:600}"
   ".n{font-size:14px;color:#666}.ok{color:#1a8a47;font-weight:600}.mal{color:#d70015;font-weight:600}</style>";
 
-void paginaInicio() {
-  if (!portalActivo) { paginaPrincipal(); return; }
-  // Redes WiFi cercanas para elegir sin escribir el nombre
-  int n = WiFi.scanNetworks();
+// Si el celular pidió otra dirección (así detecta que la red tiene una página para iniciar sesión),
+// se lo manda a la del aparato. Es lo que hace aparecer el aviso "Iniciar sesión en la red".
+bool mandarAlPortal() {
+  String ip = WiFi.softAPIP().toString();
+  if (portalActivo) Serial.println("Pedido del celular: " + server.hostHeader() + server.uri());
+  if (!portalActivo || server.hostHeader() == ip) return false;
+  server.sendHeader("Location", "http://" + ip + "/", true);
+  server.send(302, "text/plain", "");
+  return true;
+}
+
+// Redes WiFi cercanas: se buscan en segundo plano para que la página responda al instante
+// (si el aparato tarda, el celular cree que la red no anda y no ofrece abrir la página)
+void buscarRedes() {
+  if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) return;
+  ultimoEscaneo = millis();
+  WiFi.scanNetworks(true);
+}
+
+void leerRedesEncontradas() {
+  int n = WiFi.scanComplete();
+  if (n < 0) return;   // todavía buscando, o sin búsqueda pendiente
   String opciones = "";
   for (int i = 0; i < n && i < 20; i++) {
     String r = WiFi.SSID(i);
     if (r.length() > 0 && opciones.indexOf("value=\"" + escaparHtml(r) + "\"") < 0) opciones += "<option value=\"" + escaparHtml(r) + "\">";
   }
+  opcionesRedes = opciones;
+  WiFi.scanDelete();
+}
+
+void paginaInicio() {
+  if (!portalActivo) { paginaPrincipal(); return; }
+  if (mandarAlPortal()) return;
+  String opciones = opcionesRedes;
   String html = "<!doctype html><html><head><title>ClimControl</title>";
   html += ESTILO;
   html += "</head><body><div class='c'><h1>Configurar ClimControl</h1>";
@@ -651,6 +732,7 @@ void guardarConfiguracionWiFi() {
   estadoVinculacion = "";
   WiFi.disconnect();
   WiFi.begin(wifiNombre.c_str(), wifiClave.c_str());
+  intentoWiFiDesde = millis();
   ultimaVezConectado = millis();
   server.sendHeader("Location", "/estado");
   server.send(303);
@@ -676,8 +758,9 @@ void paginaEstado() {
 // Cualquier dirección lleva a la página de configuración (así el celular la abre solo)
 void paginaNoEncontrada() {
   if (portalActivo) {
-    server.sendHeader("Location", "http://192.168.4.1/");
-    server.send(302);
+    Serial.println("Pedido del celular: " + server.hostHeader() + server.uri());
+    server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/", true);
+    server.send(302, "text/plain", "");
   } else {
     server.send(404, "text/plain", "No encontrado");
   }
