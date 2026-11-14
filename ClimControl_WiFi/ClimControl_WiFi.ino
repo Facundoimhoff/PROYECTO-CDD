@@ -79,7 +79,7 @@ float tempAire       = 27.0;   // desde acá: aire acondicionado (y el ventilado
 // El PIR detecta MOVIMIENTO, no presencia: un alumno quieto no lo activa.
 // Por eso "hay personas" = hubo movimiento en los últimos esperaSinMovimiento ms.
 unsigned long esperaSinMovimiento = 5UL * 60000UL;  // 5 minutos (se cambia desde la página en minutos y segundos; 0 = al instante)
-const unsigned long CALENTAMIENTO_PIR = 30000;      // al prenderlo, el PIR tarda unos 30 segundos en estabilizarse
+const unsigned long CALENTAMIENTO_PIR = 5000;       // al prenderlo, el PIR puede dar falsos avisos: se ignoran los primeros 5 segundos
 const unsigned long PULSO_MINIMO_PIR = 200;         // un movimiento real dura más que esto; los picos cortos son ruido
 const unsigned long INTERVALO_LECTURA = 2000;       // cada cuánto se leen los demás sensores y se decide
 const unsigned long INTERVALO_REPORTE = 2000;       // cada cuánto se mandan los datos a Supabase (y se recibe la configuración)
@@ -417,7 +417,7 @@ void leerSensores() {
 }
 
 void revisarPIR() {
-  // Durante los primeros 30 segundos el PIR puede dar detecciones falsas: no le hacemos caso
+  // Durante los primeros 5 segundos el PIR puede dar detecciones falsas: no le hacemos caso
   if (millis() < CALENTAMIENTO_PIR) {
     hayPersonas = false;
     return;
