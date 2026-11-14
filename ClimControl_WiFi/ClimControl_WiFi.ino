@@ -151,6 +151,15 @@ void setup() {
 
   // Lo guardado en la memoria: configuración, WiFi y vinculación
   memoria.begin("climcontrol", false);
+  // Borrado de fábrica de una sola vez: al cargar un programa con un número de versión nuevo, la
+  // placa olvida el WiFi y la vinculación de pruebas anteriores y sale como una placa nueva.
+  // (Para otro borrado de fábrica, subir este número en 1.)
+  const int RESET_DE_FABRICA = 2;
+  if (memoria.getInt("reset", 0) != RESET_DE_FABRICA) {
+    memoria.clear();
+    memoria.putInt("reset", RESET_DE_FABRICA);
+    Serial.println("Borrado de fabrica: sin WiFi ni vinculacion guardados");
+  }
   tempVentilador = memoria.getFloat("tVent", tempVentilador);
   tempAire = memoria.getFloat("tAire", tempAire);
   esperaSinMovimiento = memoria.getULong("espera", esperaSinMovimiento);
