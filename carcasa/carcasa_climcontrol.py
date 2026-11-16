@@ -20,7 +20,7 @@ HOLGURA = 0.4
 
 PROTO_L, PROTO_A, PROTO_H = 165.5, 55.5, 10.0     # protoboard completa (830 puntos)
 RELE_L, RELE_A = 34.5, 28.5                        # módulo relé de 1 canal (medido: 34 × 28)
-PIR_PCB_L, PIR_PCB_A, PIR_DOMO = 35.5, 28.5, 26.0  # HC-SR501: placa (medida: 35 × 28) y agujero para el domo (Ø 23 + margen)
+PIR_PCB_L, PIR_PCB_A, PIR_DOMO = 35.5, 28.5, 27.5  # HC-SR501: placa (medida: 35 × 28) y agujero para el domo (medido: Ø 25 + margen)
 
 # Interior de la bandeja: protoboard + relé al lado, con lugar para los cables
 GAP_USB = 9.0           # lugar entre la pared del USB y la protoboard (para el conector micro-USB)
@@ -56,6 +56,7 @@ EMBUDO_ANGULO = 40.0                          # inclinación de la pared del emb
 DHT_X = PROTO_X0 + 80.0                         # el DHT11 está pinchado en la protoboard (filas 29-33): ranuras de aire en la pared y en la tapa, encima de él
 DHT_Y = PROTO_Y + PROTO_A / 2 - 20.0
 
+JACK_12V = 11.5   # agujero para el jack de la fuente de 12 V
 SALIDA = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else os.path.dirname(os.path.abspath(__file__))
 os.makedirs(SALIDA, exist_ok=True)
 SOLAPE = 0.5   # las piezas que se suman se superponen un poco para que la unión sea limpia
@@ -174,12 +175,11 @@ def hacer_base():
     # Paso del cable del cooler hacia la bandeja (abajo, en la pared del fondo)
     restar(base, caja("paso_cable", EXT_L - PARED - 1, 28, PISO, PARED + 2, 12, 8))
 
-    # Topes para la protoboard y el relé
-    unir(base, *esquinas("tope_proto", PROTO_X0, PROTO_Y - PROTO_A / 2, PROTO_L, PROTO_A))
-    unir(base, *esquinas("tope_rele", RELE_X0, RELE_Y - RELE_A / 2, RELE_L, RELE_A))
+    # El piso queda totalmente plano: la protoboard se pega con su adhesivo y el relé con cinta doble faz
 
     # Abertura para el cable micro-USB de la ESP32 (pared del lado del USB, centrada en la protoboard)
-    restar(base, caja("usb", -1, PROTO_Y - 9, PISO + 9, PARED + 2, 18, 13))
+    # Agujero de 20 × 16 mm, corrido 3 mm hacia el centro (el conector sigue quedando dentro del agujero)
+    restar(base, caja("usb", -1, PROTO_Y - 13, PISO + 12, PARED + 2, 20, 16))
     # Ranuras de aire en la pared +Y, a la altura del DHT11 (así le llega el aire del aula)
     for i in range(-4, 5):
         restar(base, caja("ranura", DHT_X + i * 5 - 1, EXT_A / 2 - PARED - 1, PISO + 14, 2.0, PARED + 2, 22))
@@ -187,7 +187,9 @@ def hacer_base():
     for i in range(10):
         restar(base, caja("ranura", PARED + 25 + i * 6, -EXT_A / 2 - 1, PISO + 16, 2.0, PARED + 2, 18))
     # Muesca para el cable de la fuente de 12 V (borde superior de la pared -Y, cerca del relé)
-    restar(base, caja("cable12v", PARED + 118, -EXT_A / 2 - 1, ALTO_BANDEJA - 9, 9, PARED + 2, 10))
+    # Ø 11,5 mm: entra un jack DC hembra de chasis (5,5 × 2,1 mm, rosca de 11 mm), donde se enchufa la fuente
+    # de 12 V que va al tomacorriente. Si no usan jack, también sirve para pasar el cable de la fuente.
+    restar(base, cilindro("jack12v", EXT_L - 16.0, EXT_A / 2 - PARED / 2, PISO + 20.0, JACK_12V, PARED + 2, 'Y'))
     limpiar_malla(base)
     return base
 
