@@ -5,3 +5,6 @@ ClimControl_WiFi/secretos.h
 *.accdb
 *.laccdb
 .claude/
+
+# Respaldo automático de Blender
+*.blend1
